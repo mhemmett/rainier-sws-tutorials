@@ -1,0 +1,20 @@
+# conda env create -f environment.yml && conda activate rainier-sws
+# numpy is pinned below 2 because the bundled SWSPy copy relies on numpy-1.x
+# behaviour of np.linalg.eig (real output for symmetric input); numpy 2 returns
+# complex arrays there and the splitting code fails with a TypeError.
+name: rainier-sws
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy<2
+  - scipy
+  - pandas
+  - matplotlib
+  - obspy>=1.4
+  - scikit-learn
+  - numba
+  - netcdf4
+  - jupyterlab
+  - nbconvert
+  - pytest

@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.DS_Store
+figures/*
+!figures/.gitkeep
+# waveforms fetched live by notebook 02 are cached but not tracked; the bundled batches are
+data/waveforms/*/fetched_*.mseed
