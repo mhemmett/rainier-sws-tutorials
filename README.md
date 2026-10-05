@@ -8,7 +8,7 @@ Written for a student with Python experience and no seismology background. The l
 "what is a seismogram" and end with reproducing a published-quality splitting measurement,
 putting error bars on the pooled results, and benchmarking the thresholds that produced them.
 
-Advisor: Michael Hemmett (UW ESS, Denolle Lab). Student: Charlotte.
+Maintained by Michael Hemmett (UW ESS, Denolle Lab).
 
 ## Setup
 
