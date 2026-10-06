@@ -2,6 +2,9 @@
 # numpy is pinned below 2 because the bundled SWSPy copy relies on numpy-1.x
 # behaviour of np.linalg.eig (real output for symmetric input); numpy 2 returns
 # complex arrays there and the splitting code fails with a TypeError.
+# chronos and chronfix (Kidiwela, UW; notebook 05b) are installed from GitHub by
+# pip; if that step fails (no network), the env still builds and notebook 05b
+# falls back to the local copies of the same numerics in rainier_sws/timing.py.
 name: rainier-sws
 channels:
   - conda-forge
@@ -11,10 +14,14 @@ dependencies:
   - scipy
   - pandas
   - matplotlib
-  - obspy>=1.4
+  - obspy>=1.5
   - scikit-learn
   - numba
   - netcdf4
   - jupyterlab
   - nbconvert
   - pytest
+  - pip
+  - pip:
+      - chronos @ git+https://github.com/MaleenKidiwela/chronos
+      - chronfix @ git+https://github.com/MaleenKidiwela/chronos#subdirectory=chronfix
