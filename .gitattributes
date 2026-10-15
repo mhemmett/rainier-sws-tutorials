@@ -1,0 +1,7 @@
+# Same bytes on macOS, Linux and Windows checkouts, whatever core.autocrlf is set to.
+* text=auto eol=lf
+
+*.mseed binary
+*.png   binary
+*.jpg   binary
+*.pdf   binary
