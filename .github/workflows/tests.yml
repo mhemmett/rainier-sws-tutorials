@@ -1,0 +1,39 @@
+# Build the conda environment from environment.yml and run the test suite on
+# Windows and macOS, so a student on either can follow the README as written.
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    name: pytest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        # login shell so the activated env is on PATH; bash is Git Bash on Windows
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          environment-file: environment.yml
+          activate-environment: rainier-sws
+          conda-remove-defaults: true
+
+      - name: Environment
+        run: |
+          conda info
+          python -c "import numpy, obspy, numba; print('numpy', numpy.__version__, '| obspy', obspy.__version__, '| numba', numba.__version__)"
+          python -c "from rainier_sws import timing; print('chronos installed:', timing.CHRONOS_AVAILABLE)"
+
+      - name: Tests
+        run: pytest -q -rs

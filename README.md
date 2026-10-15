@@ -79,9 +79,11 @@ that, below.
 
 You need a terminal, git, and a conda-based Python. If you have never used a terminal or git,
 start with the Software Carpentry lessons linked from notebook 00 (an afternoon each), then come
-back here.
+back here. The lessons and tests run on macOS, Windows and Linux.
 
-1. **Install Miniconda** (skip if `conda --version` already works):
+1. **Install Miniconda** (skip if `conda --version` already works).
+
+   *macOS or Linux*, in a terminal:
 
    ```bash
    # macOS, Apple silicon
@@ -89,13 +91,32 @@ back here.
    bash Miniconda3-latest-MacOSX-arm64.sh
    # macOS, Intel:  Miniconda3-latest-MacOSX-x86_64.sh
    # Linux:         Miniconda3-latest-Linux-x86_64.sh
-   # Windows:       download and run the .exe from https://docs.conda.io/en/latest/miniconda.html
    ```
 
    Accept the licence, keep the default location, say yes to `conda init`, then **open a new
-   terminal**. Add the community channel once: `conda config --add channels conda-forge`.
+   terminal**.
 
-2. **Get the repo and build the environment:**
+   *Windows*:
+
+   - Install **Git for Windows** first, from [git-scm.com/download/win](https://git-scm.com/download/win),
+     keeping the default options. Besides `git` itself it gives you **Git Bash**, the terminal the
+     Software Carpentry shell lesson uses, and the environment build below needs `git` to install
+     chronos.
+   - Download and run `Miniconda3-latest-Windows-x86_64.exe` from
+     [docs.conda.io/en/latest/miniconda.html](https://docs.conda.io/en/latest/miniconda.html):
+     "Just Me", default location, leave "add to PATH" unticked.
+     On a laptop with a Snapdragon (ARM) processor, use that same x86_64 installer; Windows runs it
+     under emulation.
+   - From the Start menu open **Anaconda Prompt (miniconda3)** and run every command below there.
+     (To use PowerShell or Git Bash instead, run `conda init powershell` or `conda init bash` once
+     in the Anaconda Prompt and reopen the terminal.)
+   - Clone into a plain folder such as `C:\Users\<you>\rainier-sws-tutorials`, not a OneDrive-synced
+     Documents or Desktop folder: OneDrive locks and re-uploads files while git and Jupyter are
+     writing them.
+
+   On any system, add the community channel once: `conda config --add channels conda-forge`.
+
+2. **Get the repo and build the environment** (the same commands on every system):
 
    ```bash
    git clone https://github.com/mhemmett/rainier-sws-tutorials.git
@@ -181,6 +202,7 @@ data/catalog/     PNSN event list, station coordinates, per-station pick catalog
 data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events)
 results/          Michael's preliminary per-station results CSVs (one row per catalog event)
 tests/            a few tests, including the reproduction of event 61504668 at STAR and the synthetic clock recovery
+.github/workflows/tests.yml   builds the environment and runs the tests on Windows, macOS and Linux on every push
 ```
 
 ## House rules
