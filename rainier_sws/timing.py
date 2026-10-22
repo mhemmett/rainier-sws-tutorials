@@ -191,7 +191,7 @@ class CCParams:
 
     chronos defaults are 30-min windows, 7.5-min step, whitening 0.5-3.8 Hz,
     max lag 60 s, for 8 Hz ocean-bottom data. For the 20-Hz synthetic in
-    notebook 05b, and for a 5-km summit pair decimated to 50 Hz, we use
+    notebook 04b, and for a 5-km summit pair decimated to 50 Hz, we use
     shorter windows and a higher band; the recipe is the same.
     """
     window_s: float = 600.0       # correlation window length

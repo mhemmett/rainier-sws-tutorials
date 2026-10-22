@@ -1,4 +1,4 @@
-"""Tests for rainier_sws.timing (notebook 05b). Run with: pytest -q tests/test_timing.py"""
+"""Tests for rainier_sws.timing (notebook 04b). Run with: pytest -q tests/test_timing.py"""
 import sys
 from pathlib import Path
 
@@ -20,7 +20,7 @@ def test_catalog_residuals_have_sensible_velocities():
 
 
 def test_star_residuals_move_together():
-    """The observation notebook 05b is built on: at STAR, daily P and S residuals co-vary."""
+    """The observation notebook 04b is built on: at STAR, daily P and S residuals co-vary."""
     cat = pd.read_csv(paths.STRICT_CATALOG_CSV)
     sta = data.load_stations().set_index("station")
     res, _ = timing.travel_time_residuals(cat, sta)

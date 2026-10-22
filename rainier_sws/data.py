@@ -9,6 +9,7 @@ notebook see the same bytes (replicability).
 from __future__ import annotations
 
 import glob
+import urllib.request
 import warnings
 from pathlib import Path
 
@@ -24,6 +25,11 @@ from . import paths
 PRE_S, POST_S = 5.0, 15.0
 FDSN_URL = "https://service.earthscope.org"
 TIME_COLUMNS = ["origin_time", "start_time", "p_time", "s_time"]
+
+# USGS 3DEP elevation service and the box the repo's DEM covers (lon_min, lat_min, lon_max, lat_max)
+DEM_URL = "https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage"
+DEM_BBOX = (-122.06, 46.65, -121.46, 47.05)
+DEM_SIZE = (1080, 720)  # columns, rows: 2 arc-seconds (about 60 m) per pixel
 
 
 # ----------------------------------------------------------------------------
@@ -76,6 +82,125 @@ def to_utc(ts) -> UTCDateTime:
 
 
 # ----------------------------------------------------------------------------
+# Topography: repo copy first, USGS second
+# ----------------------------------------------------------------------------
+def download_topography(path: Path = paths.DEM_TIF) -> Path:
+    """Request the Rainier DEM (16-bit GeoTIFF, metres) from USGS 3DEP and save it to ``path``."""
+    query = (f"bbox={','.join(map(str, DEM_BBOX))}&bboxSR=4326&imageSR=4326"
+             f"&size={DEM_SIZE[0]},{DEM_SIZE[1]}&format=tiff&pixelType=S16&compression=LZ77"
+             "&interpolation=RSP_BilinearInterpolation&f=image")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(f"{DEM_URL}?{query}", timeout=60) as resp:
+        path.write_bytes(resp.read())
+    return path
+
+
+def load_topography(path: Path = paths.DEM_TIF) -> tuple[np.ndarray, list[float]]:
+    """Elevation in metres around Rainier, and its extent [lon_min, lon_max, lat_min, lat_max].
+
+    The extent is in the order ``plt.imshow(elev, extent=extent)`` expects. Row 0
+    of ``elev`` is the northern edge. Reads the copy in ``data/topography/``,
+    downloading it from USGS 3DEP first if it is missing.
+    """
+    from PIL import Image  # installed with matplotlib
+    if not path.exists():
+        download_topography(path)
+    with Image.open(path) as img:
+        elev = np.array(img).astype(float)
+        lon0, lat0 = img.tag_v2[33922][3:5]   # GeoTIFF tie point: the top-left corner
+        dlon, dlat = img.tag_v2[33550][:2]    # GeoTIFF pixel size in degrees
+    nrows, ncols = elev.shape
+    return elev, [lon0, lon0 + ncols * dlon, lat0 - nrows * dlat, lat0]
+
+
+# ----------------------------------------------------------------------------
+# Component orientation: archived metadata, corrected where we know it is wrong
+# ----------------------------------------------------------------------------
+# Orientations that differ from the archived metadata, keyed by (network, station, location, channel):
+# (azimuth, dip) the channel really has. Add an entry with a dated note whenever a new one is found.
+ORIENTATION_FIXES = {
+    # STAR's horizontals are swapped: the channel labelled EHN points east and EHE points north.
+    # Found in 2026; EarthScope and IRIS MDA still list EHN at 0 deg and EHE at 90 deg. Location 01
+    # is the 2014-onward installation; whether the 2009 installation (location --) was also swapped
+    # is not known.
+    ("UW", "STAR", "01", "EHN"): (90.0, 0.0),
+    ("UW", "STAR", "01", "EHE"): (0.0, 0.0),
+}
+_ORIENTATIONS: pd.DataFrame | None = None
+
+
+def load_orientations() -> pd.DataFrame:
+    """Azimuth and dip of every seismic channel epoch at our stations, as archived (memoized)."""
+    global _ORIENTATIONS
+    if _ORIENTATIONS is None:
+        o = pd.read_csv(paths.ORIENTATIONS_CSV, comment="#", dtype={"location": str}, keep_default_na=False)
+        o["start"] = pd.to_datetime(o["start"], utc=True)
+        o["end"] = pd.to_datetime(o["end"].replace("", "2599-12-31T00:00:00"), utc=True)
+        _ORIENTATIONS = o
+    return _ORIENTATIONS
+
+
+def channel_orientation(tr: obspy.Trace) -> tuple[float, float, str]:
+    """(azimuth, dip, source) for one trace: from ORIENTATION_FIXES, else the archived metadata.
+
+    Azimuth is degrees clockwise from north, dip degrees down from horizontal (so an
+    upward vertical has dip -90), both in the SEED convention.
+    """
+    s = tr.stats
+    fix = ORIENTATION_FIXES.get((s.network, s.station, s.location, s.channel))
+    if fix is not None:
+        return fix[0], fix[1], "fix"
+    o = load_orientations()
+    t = pd.Timestamp(s.starttime.datetime, tz="UTC")
+    hit = o[(o.network == s.network) & (o.station == s.station) & (o.location == s.location)
+            & (o.channel == s.channel) & (o.start <= t) & (o.end > t)]
+    if hit.empty:
+        raise KeyError(f"no orientation for {tr.id} at {s.starttime}; add it to {paths.ORIENTATIONS_CSV.name}")
+    return float(hit.azimuth.iloc[0]), float(hit.dip.iloc[0]), "metadata"
+
+
+def _is_nominal(channel: str, azimuth: float, dip: float) -> bool:
+    """True when a channel points where its last letter says (Z up, N north, E east)."""
+    return {"Z": dip == -90,
+            "N": dip == 0 and azimuth % 360 == 0,
+            "E": dip == 0 and azimuth % 360 == 90}.get(channel[-1], False)
+
+
+def orient_zne(st: obspy.Stream) -> obspy.Stream:
+    """Three components that really point up, north and east, in that order.
+
+    Each trace's true orientation comes from ``channel_orientation``. If all three
+    already point where their names say, the data are returned untouched (integer
+    counts, bit for bit). Otherwise each channel is treated as the projection of the
+    ground motion (up, north, east) onto its own direction, that 3x3 system is solved
+    for the ground motion, the traces are renamed ``??Z``, ``??N``, ``??E``, and the
+    correction is noted in ``tr.stats.processing``. A swap or a sign flip comes out
+    exact (the matrix is rounded, so cos 90 is 0, not 6e-17).
+    """
+    if len(st) != 3:
+        raise ValueError(f"orient_zne needs 3 traces, got {len(st)}")
+    orient = [channel_orientation(tr) for tr in st]
+    if all(_is_nominal(tr.stats.channel, az, dip) for tr, (az, dip, _) in zip(st, orient)):
+        return obspy.Stream(sorted(st, key=lambda tr: "ZNE".index(tr.stats.channel[-1])))
+    st = st.copy()
+    st.trim(max(tr.stats.starttime for tr in st), min(tr.stats.endtime for tr in st))
+    az, dip = np.deg2rad([o[0] for o in orient]), np.deg2rad([o[1] for o in orient])
+    # row i: unit vector of channel i in (up, north, east); dip is positive down
+    to_channels = np.round(np.column_stack([-np.sin(dip), np.cos(dip) * np.cos(az), np.cos(dip) * np.sin(az)]), 12)
+    une = np.linalg.solve(to_channels, np.vstack([tr.data.astype(float) for tr in st]))
+    note = "orient_zne: " + ", ".join(f"{tr.stats.channel} az={az:g} dip={dip:g} ({src})"
+                                       for tr, (az, dip, src) in zip(st, orient))
+    out = obspy.Stream()
+    for comp, values in zip("ZNE", une):
+        tr = st[0].copy()
+        tr.data = values
+        tr.stats.channel = tr.stats.channel[:2] + comp
+        tr.stats.processing = list(tr.stats.get("processing", [])) + [note]
+        out += tr
+    return out
+
+
+# ----------------------------------------------------------------------------
 # Waveforms: cache first, EarthScope second
 # ----------------------------------------------------------------------------
 _CACHE: dict[str, obspy.Stream] = {}
@@ -111,12 +236,16 @@ def fetch_from_earthscope(network: str, station: str, t0: UTCDateTime, t1: UTCDa
 
 
 def get_event_stream(station: str, row: pd.Series, network: str = "UW",
-                     allow_download: bool = True, save: bool = True) -> obspy.Stream:
+                     allow_download: bool = True, save: bool = True,
+                     correct_orientation: bool = True) -> obspy.Stream:
     """Three-component Stream for one catalog row at one station.
 
     1. Look in the on-disk cache (``data/waveforms/<STATION>/``).
     2. If absent and ``allow_download``, request it from EarthScope and, if
        ``save``, append it to the cache as ``fetched_<evid>.mseed``.
+    3. Unless ``correct_orientation=False``, rotate the components to true Z, N, E
+       with ``orient_zne`` (this is where STAR's swapped horizontals are fixed).
+       Turn it off only to reproduce results computed before the fix.
 
     Returns a Stream with exactly Z, N, E (or raises with a clear message).
     """
@@ -136,11 +265,13 @@ def get_event_stream(station: str, row: pd.Series, network: str = "UW",
             st.write(str(out), format="MSEED")
             load_cached_station(station, refresh=True)
     st = st.copy()
-    z, n, e = st.select(channel="??Z"), st.select(channel="??N"), st.select(channel="??E")
+    z, n, e = st.select(channel="??Z"), st.select(channel="??[N1]"), st.select(channel="??[E2]")
     if not (len(z) == len(n) == len(e) == 1):
         raise ValueError(f"evid {row['evid']} at {station}: expected 1 trace each of Z/N/E, got "
                          f"Z={len(z)} N={len(n)} E={len(e)} (source={source})")
     out = obspy.Stream([z[0], n[0], e[0]])
+    if correct_orientation:
+        out = orient_zne(out)
     out.source = source  # informal tag so notebooks can say where data came from
     return out
 
