@@ -131,7 +131,7 @@ back here. The lessons and tests run on macOS, Windows and Linux.
 
 The notebooks run **offline**: the seismograms they need are cached in `data/waveforms/`. With a
 network connection, notebook 02 also makes live requests to EarthScope so you can see where the
-data come from and fetch events that are not cached, and notebook 05b can download continuous data
+data come from, and notebook 04b can download continuous data
 for the real timing check.
 
 ## The lessons
@@ -142,27 +142,26 @@ Do them in order. Each starts with a goal and a time estimate and ends with exer
 | --- | --- | --- | --- |
 | 00 | `00_setup_check` | check the environment, find your way around the repo, and where to learn the shell, git and conda | 10 min (+ the linked tutorials) |
 | 01 | `01_what_is_a_seismogram` | read miniSEED with ObsPy, plot Z/N/E with P and S picks, read a seismogram | 1 h |
-| 02 | `02_getting_data_from_earthscope` | request station metadata and waveforms through FDSN web services; why we cache | 1 h |
-| 03 | `03_earthquake_catalogs_and_picks` | work with event catalogs and phase picks; map the swarm; back azimuth and distance | 1.5 h |
-| 04 | `04_filtering_spectra_snr` | spectra, bandpass filters, a precise SNR, the filter bank, dominant period | 1.5 h |
-| 05 | `05_what_is_shear_wave_splitting` | build the splitting measurement from scratch on a synthetic signal; noise, nulls, cycle skips | 2 h |
-| 05b | `05b_timing_and_clock_errors` | what a clock error does to a dataset; find one in the catalog (STAR); measure and fix it with chronos on a synthetic pair; the recipe for the real STAR data | 1.5 h |
-| 06 | `06_single_event_with_swspy` | reproduce Michael's measurement of one real event to the digit with SWSPy | 1.5 h |
-| 07 | `07_exploring_the_results` | read the per-station results, stage bookkeeping, histograms, rose diagrams | 1.5 h |
-| 08 | `08_uncertainty_and_thresholds` | bootstrap intervals, circular statistics, threshold sweeps, null screening, a benchmark function | 2 to 3 sessions |
+| 02 | `02_data_catalogs_and_maps` | pull station metadata and waveforms from EarthScope; which way the components point; event catalogs and phase picks; map the swarm on Rainier's topography; back azimuth and distance | 2 h |
+| 03 | `03_filtering_spectra_snr` | spectra, bandpass filters, a precise SNR, the filter bank, dominant period | 1.5 h |
+| 04 | `04_what_is_shear_wave_splitting` | build the splitting measurement from scratch on a synthetic signal; noise, nulls, cycle skips | 2 h |
+| 04b | `04b_timing_and_clock_errors` | what a clock error does to a dataset; find one in the catalog (STAR); measure and fix it with chronos on a synthetic pair; the recipe for the real STAR data | 1.5 h |
+| 05 | `05_single_event_with_swspy` | reproduce Michael's measurement of one real event to the digit with SWSPy, then redo it with STAR's components the right way round | 1.5 h |
+| 06 | `06_exploring_the_results` | read the per-station results, stage bookkeeping, histograms, rose diagrams | 1.5 h |
+| 07 | `07_uncertainty_and_thresholds` | bootstrap intervals, circular statistics, threshold sweeps, null screening, a benchmark function | 2 to 3 sessions |
 
-Suggested pacing at 3 hours a week: weeks 1 to 2 for notebooks 00 to 04, week 3 for 05 and 05b,
-week 4 for 06, week 5 for 07, weeks 6 to 7 for 08, and **week 8 to scale up**: turn the `benchmark`
-function of notebook 08 into a script that runs on every station in `results/` (the nine summit
+Suggested pacing at 3 hours a week: weeks 1 to 2 for notebooks 00 to 03, week 3 for 04 and 04b,
+week 4 for 05, week 5 for 06, weeks 6 to 7 for 07, and **week 8 to scale up**: turn the `benchmark`
+function of notebook 07 into a script that runs on every station in `results/` (the nine summit
 stations, the VT background at STAR) and produces one table, with an N, an uncertainty and a
-threshold-sensitivity for each. The onboarding document has the full plan.
+threshold-sensitivity for each. The *Winter quarter* section below is what comes after.
 
 ## Winter quarter
 
 Week 8 ends with a benchmark that runs on more stations. Winter quarter is about running it on more
 *data*, in this order of priority. Each item is a self-contained project with a clear "done".
 
-1. **Timing correction applied to the pipeline.** Notebook 05b finds, from the picks alone, that
+1. **Timing correction applied to the pipeline.** Notebook 04b finds, from the picks alone, that
    STAR's clock looks to have wandered by about 100 ms peak to peak during the swarm. Measure it
    properly: run the chronos recipe on continuous STAR data against RCM (4.9 km away) and against the
    nearest Z5 nodes (GPS-timed; nodes 227 and 129 near Camp Muir), get an hourly delta_t(t) with
@@ -191,17 +190,19 @@ Week 8 ends with a benchmark that runs on more stations. Winter quarter is about
 notebooks/        the lessons, executed, with outputs saved so you can see what to expect
 rainier_sws/      helper package the notebooks import (read it; it is short)
   paths.py          where things live
-  data.py           catalogs, station coordinates, waveforms (cache first, EarthScope second)
+  data.py           catalogs, station coordinates, topography, waveforms (cache first, EarthScope second),
+                    and component orientation (metadata plus known fixes, rotated to true Z/N/E)
   measure.py        the single-event measurement, mirroring the research pipeline
   quality.py        pre-processing gates and the "grade 3" post-processing filter, as named parameters
   stats.py          axial statistics, Rayleigh test, bootstrap
   timing.py         clock errors: catalog residual diagnostic, the chronos noise-correlation recipe, chronfix correction
   sws_functions.py  P-wave polarization, SNR and filter-bank code copied from the research repo
 swspy/            local copy of SWSPy (Hudson et al.), as used by the research repo
-data/catalog/     PNSN event list, station coordinates, per-station pick catalogs
+data/catalog/     PNSN event list, station coordinates, per-station pick catalogs, channel orientations
 data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events)
+data/topography/  USGS 3DEP elevation of the volcano (2 arc-second GeoTIFF)
 results/          Michael's preliminary per-station results CSVs (one row per catalog event)
-tests/            a few tests, including the reproduction of event 61504668 at STAR and the synthetic clock recovery
+tests/            a few tests, including the reproduction of event 61504668 at STAR, the STAR component fix and the synthetic clock recovery
 .github/workflows/tests.yml   builds the environment and runs the tests on Windows, macOS and Linux on every push
 ```
 
@@ -214,18 +215,51 @@ tests/            a few tests, including the reproduction of event 61504668 at S
 
 ## Known facts about the research results (so you do not rediscover them)
 
+- **STAR's horizontal components are swapped**: the channel labelled `EHN` points east and `EHE` points
+  north. The archived metadata (EarthScope, IRIS MDA) still say otherwise. `data.get_event_stream`
+  corrects it (`data.ORIENTATION_FIXES`), and also rotates any channel whose archived azimuth or dip is
+  not nominal (`data/catalog/channel_orientations.csv`). **The STAR results in `results/` were computed
+  before the swap was found**, on the components as labelled; see notebook 05. Re-measured with the
+  components corrected (same incidence angles and parameters), STAR's grade-3 set is 78 events instead of
+  121 with only 12 in common, the fraction of near-null measurements (fast axis within 20 degrees of the back
+  azimuth alone; notebook 07 also counts its perpendicular, which gives 90 percent before the fix) drops from
+  about two thirds to one third, and the fast directions spread out, mostly between
+  0 and 40 degrees with a smaller group near 90 (bimodal, so the axial mean of about 49 degrees is not a
+  useful summary). The research results need to be re-run on corrected data before STAR is interpreted.
+- **The measurement is deterministic but ill-conditioned.** The same input always gives the same output
+  (that is why event 61504668 reproduces to the digit), but adding noise of 1e-9 counts to the waveforms
+  changes Q_w for about one measured STAR event in nine, flips some fast directions by 90 degrees, and
+  moves a few events in or out of grade 3. Per-event results, and the grade-3 set itself, carry an
+  uncertainty that the formal phi and dt errors do not show; a perturbation test belongs in the benchmark. The
+  same tipping shows up between computing environments: about one STAR event in ten reproduces Michael's
+  row in everything except Q_w (notebook 05, exercise 1), so even the archived grade-3 count can differ by
+  an event.
+- **The filter bank filters causally.** `sws_functions.try_filters` calls ObsPy's bandpass with 2 corners and
+  the default `zerophase=False`, which delays the S energy by roughly 30 to 50 ms relative to the pick
+  (notebook 03, exercise 1). That is the size of the 0.03 s pick shift that changes Q_w (notebook 07,
+  section 6). Switching to zero-phase would change every measurement, so it is a decision for the research
+  pipeline, not something to change in a lesson.
+- **STAR is still analog telemetry.** Its metadata list a McVCO (analog FM telemetry) in both the 2008 to 2019
+  and the current (2014 onward, location `01`) instrument chains, so its samples are timed where they are
+  digitized, not on the mountain. Relevant to the clock question (notebook 04b). Other stations' July 2025
+  channels are all nominal in the metadata. Older epochs are not: STAR from September 2009 to September
+  2010 (the 2009 swarm) has `EHE` at azimuth 270 and `EHZ` at dip +90, which the rotation handles; whether
+  the 2009 horizontals were also swapped is not known.
+
 - Stations PANH, OBSR, PARA, RER and COPP yield no measurements because essentially every swarm event
   arrives outside the 45-degree shear-wave window under the velocity model used for ray tracing
   (`stage == fail_incidence`). This is understood; the open questions are about the gate and the
   velocity model, not about those stations' data.
 - Nearly all rays at STAR arrive from one back azimuth (about 90 degrees) and the measured fast axis is
-  also about 90 degrees, so most grade-3 measurements there are "near-null" by geometry. Notebook 08
-  explains why that is the main caveat on the preliminary result.
+  also about 90 degrees, so most grade-3 measurements there are "near-null" by geometry. Notebook 07
+  explains why that is the main caveat on the preliminary result. (That fast axis comes from the swapped
+  components; corrected, about a third of the measurements are near-null rather than two thirds. The
+  back-azimuth geometry is unchanged, so the caveat still applies to whatever survives.)
 - The research pipeline's incidence angles come from 3-D ray tracing (PyKonal) through a Vs model
-  derived as iMUSH Vp / 1.73. That code is not included here; notebook 06 uses the stored angles.
+  derived as iMUSH Vp / 1.73. That code is not included here; notebook 05 uses the stored angles.
 - STAR's travel-time residuals wander by about 100 ms through the swarm with P and S moving together,
   which is what a clock error looks like and what a velocity-model error does not. Unconfirmed until
-  the continuous-data check in notebook 05b has been run. STAR's location code is `01` and its
+  the continuous-data check in notebook 04b has been run. STAR's location code is `01` and its
   channels are short-period `EH?`.
 
 ## Sources and credits

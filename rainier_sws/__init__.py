@@ -14,7 +14,7 @@ measure   : the single-event splitting measurement, step by step
 quality   : the "grade 3" acceptance filter and the stage bookkeeping
 stats     : circular statistics and bootstrap intervals for phi and dt
 timing    : clock errors: catalog residual diagnostic, chronos noise-correlation
-            recipe, chronfix correction (notebook 05b)
+            recipe, chronfix correction (notebook 04b)
 """
 from . import paths, data, measure, quality, stats, timing  # noqa: F401
 
