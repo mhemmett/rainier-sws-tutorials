@@ -193,7 +193,7 @@ rainier_sws/      helper package the notebooks import (read it; it is short)
   data.py           catalogs, station coordinates, topography, waveforms (cache first, EarthScope second),
                     and component orientation (metadata plus known fixes, rotated to true Z/N/E)
   measure.py        the single-event measurement, mirroring the research pipeline
-  quality.py        pre-processing gates and the "grade 3" post-processing filter, as named parameters
+  quality.py        pre-processing gates and the post-processing filter, as named parameters
   stats.py          axial statistics, Rayleigh test, bootstrap
   timing.py         clock errors: catalog residual diagnostic, the chronos noise-correlation recipe, chronfix correction
   sws_functions.py  P-wave polarization, SNR and filter-bank code copied from the research repo
@@ -201,7 +201,8 @@ swspy/            local copy of SWSPy (Hudson et al.), as used by the research r
 data/catalog/     PNSN event list, station coordinates, per-station pick catalogs, channel orientations
 data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events)
 data/topography/  USGS 3DEP elevation of the volcano (2 arc-second GeoTIFF)
-results/          Michael's preliminary per-station results CSVs (one row per catalog event)
+results/          Michael's preliminary per-station results CSVs (one row per catalog event); STAR's also re-run on
+                  corrected channels (`sws_star_strict_oriented_results.csv`)
 tests/            a few tests, including the reproduction of event 61504668 at STAR, the STAR component fix and the synthetic clock recovery
 .github/workflows/tests.yml   builds the environment and runs the tests on Windows, macOS and Linux on every push
 ```
@@ -209,7 +210,7 @@ tests/            a few tests, including the reproduction of event 61504668 at S
 ## House rules
 
 - Notebooks call functions in `rainier_sws/`; they do not re-implement the pipeline. Fix a bug once.
-- Thresholds are named parameters (`quality.PreGates`, `quality.Grade3`, `measure.SwsParams`, `timing.CCParams`), never literals in a notebook.
+- Thresholds are named parameters (`quality.PreGates`, `quality.PostFilter`, `measure.SwsParams`, `timing.CCParams`), never literals in a notebook.
 - Every number you report comes with an N and an uncertainty, and a note on which thresholds it depends on.
 - Keep a dated lab notebook (a markdown file in this repo is fine) and commit at the end of every session.
 
@@ -224,15 +225,18 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   the vertical. `data.get_event_stream` corrects it (`data.ORIENTATION_FIXES`), and also rotates any channel
   whose archived azimuth or dip is not nominal (`data/catalog/channel_orientations.csv`). **The STAR results
   in `results/` were computed before the exchange was found**, on the channels as labelled, so the
-  pipeline's "horizontals" were the vertical and east records; see notebook 05. Re-measured with the
-  components corrected (same incidence angles and parameters), STAR's grade-3 set is 212 events instead of
-  121 with 51 in common, the fraction of near-null measurements (fast axis within 20 degrees of the back
-  azimuth alone; notebook 07 also counts its perpendicular, which gives 90 percent before the fix and 31
-  percent after, against 44 percent by chance) drops from about two thirds to under a tenth, and the fast
-  directions cluster north-north-east: axial mean 35 degrees (68 percent bootstrap interval about 1 degree
-  either side), circular standard deviation 17 degrees, 141 of the 212 between 20 and 40 degrees. The median
-  grade-3 dt goes from 0.02 to 0.06 s. The research results need to be re-run on corrected data before STAR
-  is interpreted.
+  pipeline's "horizontals" were the vertical and east records; see notebook 05. The research pipeline has
+  since re-run STAR on waveforms rotated to true Z/N/E, with the 33 events whose S wave clipped removed
+  (stage `fail_clipped`): `results/sws_star_strict_oriented_results.csv`, read with
+  `paths.station_results_csv("STAR", oriented=True)`, which notebook 07 uses. With the default
+  post-processing filter it keeps 206 events instead of 121, with 49 in common. The fraction of near-null
+  measurements (fast axis within 20 degrees of the back azimuth alone; notebook 07 also counts its
+  perpendicular, which gives 90 percent before the fix and 32 percent after, against 44 percent by chance)
+  drops from about two thirds to under a tenth, and the fast directions cluster north-north-east: axial
+  mean 35 degrees (68 percent bootstrap interval about 1 degree either side), circular standard deviation
+  17 degrees, 139 of the 206 between 20 and 40 degrees. The median filtered dt goes from 0.02 to 0.06 s.
+  The research repo's current figures use Q_w >= 0.75, which keeps 194 events (mean 34 degrees, R = 0.86,
+  6 percent near-null). RCM and MILD reproduce their original results exactly, so only STAR's file changed.
 - **STAR's amplitudes and clip level** (same report). STAR records 15 to 18 times less than its StationXML
   response implies, on both the EH and EL channels, and its EH channels saturate at about 2.0e4 counts,
   which summit events of M1.1 to 1.6 reach (four of 35 tested). Splitting uses relative amplitudes, so the
@@ -242,12 +246,12 @@ tests/            a few tests, including the reproduction of event 61504668 at S
 - **The measurement is deterministic but ill-conditioned.** The same input always gives the same output
   (that is why event 61504668 reproduces to the digit), but adding noise of 1e-9 counts to the waveforms
   changes Q_w for about one measured STAR event in nine, flips some fast directions by 90 degrees, and
-  moves a few events in or out of grade 3 (on the archived components; on the corrected ones the same test
+  moves a few events in or out of the filtered set (on the archived components; on the corrected ones the same test
   changes Q_w for 27 of 677 measured events, about one in 25, moves no fast direction by 90 degrees, and adds
-  4 events to grade 3). Per-event results, and the grade-3 set itself, carry an
+  4 events to the filtered set). Per-event results, and the filtered set itself, carry an
   uncertainty that the formal phi and dt errors do not show; a perturbation test belongs in the benchmark. The
   same tipping shows up between computing environments: about one STAR event in ten reproduces Michael's
-  row in everything except Q_w (notebook 05, exercise 1), so even the archived grade-3 count can differ by
+  row in everything except Q_w (notebook 05, exercise 1), so even the archived filtered count can differ by
   an event.
 - **The filter bank filters causally.** `sws_functions.try_filters` calls ObsPy's bandpass with 2 corners and
   the default `zerophase=False`, which delays the S energy by roughly 30 to 50 ms relative to the pick
@@ -266,7 +270,7 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   (`stage == fail_incidence`). This is understood; the open questions are about the gate and the
   velocity model, not about those stations' data.
 - Nearly all rays at STAR arrive from one back azimuth (about 90 degrees) and the measured fast axis is
-  also about 90 degrees, so most grade-3 measurements there are "near-null" by geometry. Notebook 07
+  also about 90 degrees, so most filtered measurements there are "near-null" by geometry. Notebook 07
   explains why that is the main caveat on the preliminary result. (That fast axis comes from the exchanged
   channels. Corrected, the fast axis is about 35 degrees and under a tenth of the measurements are within 20
   degrees of the back azimuth, below chance. The back-azimuth geometry is unchanged, so one back azimuth still

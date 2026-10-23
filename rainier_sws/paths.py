@@ -26,9 +26,14 @@ def station_waveform_dir(station: str) -> Path:
     return WAVEFORMS / station.upper()
 
 
-def station_results_csv(station: str) -> Path:
-    """Michael's preliminary results for a station (one row per catalog event)."""
-    return RESULTS / f"sws_{station.lower()}_strict_results.csv"
+def station_results_csv(station: str, oriented: bool = False) -> Path:
+    """Michael's preliminary results for a station (one row per catalog event).
+
+    ``oriented=True`` gives the re-run on waveforms rotated to true Z/N/E, with
+    clipped events screened out (stage ``fail_clipped``). Only STAR's differs from
+    the original, so only STAR's is in the repo.
+    """
+    return RESULTS / f"sws_{station.lower()}_strict{'_oriented' if oriented else ''}_results.csv"
 
 
 for _d in (WAVEFORMS, RESULTS, FIGURES):

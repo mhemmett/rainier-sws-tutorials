@@ -11,7 +11,7 @@ paths     : where data, results and figures live (relative to the repo root)
 data      : loading catalogs, station coordinates and waveforms (cache first,
             EarthScope second)
 measure   : the single-event splitting measurement, step by step
-quality   : the "grade 3" acceptance filter and the stage bookkeeping
+quality   : the pre-processing gates, the post-processing filter and the stage bookkeeping
 stats     : circular statistics and bootstrap intervals for phi and dt
 timing    : clock errors: catalog residual diagnostic, chronos noise-correlation
             recipe, chronfix correction (notebook 04b)

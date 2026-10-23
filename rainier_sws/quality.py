@@ -7,7 +7,7 @@ PRE-processing gates (decide whether we even attempt a measurement):
     incidence     <= 45 deg  inside the "shear-wave window" at the free surface
     SNR           >= 2.0     the S wave stands out from the noise
 
-POST-processing filter ("grade 3", decides whether a measurement is trusted):
+POST-processing filter (decides whether a measurement is trusted):
     snr_horizontal >= 2.0
     quality (Q_w)  >= 0.5     (some scripts use 0.75)
     dt_error       <= 0.05 s
@@ -33,7 +33,7 @@ class PreGates:
 
 
 @dataclass(frozen=True)
-class Grade3:
+class PostFilter:
     snr_min: float = 2.0
     qw_min: float = 0.5
     dt_error_max: float = 0.05
@@ -45,7 +45,7 @@ class Grade3:
 
 
 DEFAULT_PRE = PreGates()
-DEFAULT_GRADE3 = Grade3()
+DEFAULT_POST = PostFilter()
 
 
 MEASUREMENT_COLUMNS = ["success", "phi", "dt", "phi_error", "dt_error", "quality", "snr_horizontal", "dominant_period"]
@@ -70,8 +70,8 @@ def successful(results: pd.DataFrame) -> pd.DataFrame:
     return ok[np.isfinite(ok["phi"]) & np.isfinite(ok["dt"])]
 
 
-def grade3_mask(results: pd.DataFrame, g: Grade3 = DEFAULT_GRADE3) -> pd.Series:
-    """Boolean mask of rows that pass the grade-3 post-processing filter."""
+def post_filter_mask(results: pd.DataFrame, g: PostFilter = DEFAULT_POST) -> pd.Series:
+    """Boolean mask of rows that pass the post-processing filter."""
     results = _complete(results)
     return (
         (results["stage"] == "ok") & results["success"]
@@ -83,8 +83,9 @@ def grade3_mask(results: pd.DataFrame, g: Grade3 = DEFAULT_GRADE3) -> pd.Series:
     )
 
 
-def grade3(results: pd.DataFrame, g: Grade3 = DEFAULT_GRADE3) -> pd.DataFrame:
-    return results[grade3_mask(results, g)].copy()
+def post_filtered(results: pd.DataFrame, g: PostFilter = DEFAULT_POST) -> pd.DataFrame:
+    """The rows that pass the post-processing filter."""
+    return results[post_filter_mask(results, g)].copy()
 
 
 def stage_counts(results: pd.DataFrame) -> pd.Series:
@@ -92,10 +93,10 @@ def stage_counts(results: pd.DataFrame) -> pd.Series:
     return results["stage"].value_counts()
 
 
-def funnel(results: pd.DataFrame, g: Grade3 = DEFAULT_GRADE3) -> pd.Series:
-    """Attempted -> successful -> grade 3, as a 3-row Series."""
+def funnel(results: pd.DataFrame, g: PostFilter = DEFAULT_POST) -> pd.Series:
+    """Attempted -> successful -> passed the post-processing filter, as a 3-row Series."""
     return pd.Series({
         "attempted": len(results),
         "successful": len(successful(results)),
-        "grade3": int(grade3_mask(results, g).sum()),
+        "filtered": int(post_filter_mask(results, g).sum()),
     })

@@ -26,15 +26,23 @@ def test_axial_diff():
     assert stats.axial_diff(0, 90) == pytest.approx(90)
 
 
-def test_grade3_counts_match_readme():
+def test_filtered_counts_match_readme():
     r = pd.read_csv(paths.station_results_csv("STAR"))
     f = quality.funnel(r)
-    assert (f["attempted"], f["successful"], f["grade3"]) == (903, 709, 121)
+    assert (f["attempted"], f["successful"], f["filtered"]) == (903, 709, 121)
 
 
-def test_grade3_on_station_with_no_measurements():
+def test_oriented_star_counts_match_readme():
+    # the research re-run on true Z/N/E with clipped events removed; 194 is its Q_w >= 0.75 figure
+    r = pd.read_csv(paths.station_results_csv("STAR", oriented=True))
+    assert (r.stage == "fail_clipped").sum() == 33
+    assert (len(quality.successful(r)), quality.funnel(r)["filtered"]) == (659, 206)
+    assert len(quality.post_filtered(r, quality.PostFilter(qw_min=0.75))) == 194
+
+
+def test_post_filter_on_station_with_no_measurements():
     r = pd.read_csv(paths.station_results_csv("PANH"))
-    assert quality.funnel(r)["grade3"] == 0
+    assert quality.funnel(r)["filtered"] == 0
     assert quality.stage_counts(r)["fail_incidence"] > 400
 
 
