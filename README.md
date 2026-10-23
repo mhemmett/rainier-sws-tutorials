@@ -228,15 +228,16 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   pipeline's "horizontals" were the vertical and east records; see notebook 05. The research pipeline has
   since re-run STAR on waveforms rotated to true Z/N/E, with the 33 events whose S wave clipped removed
   (stage `fail_clipped`): `results/sws_star_strict_oriented_results.csv`, read with
-  `paths.station_results_csv("STAR", oriented=True)`, which notebook 07 uses. With the default
-  post-processing filter it keeps 206 events instead of 121, with 49 in common. The fraction of near-null
+  `paths.station_results_csv("STAR", oriented=True)`, which notebook 07 uses. With the post-processing
+  filter (Q_w >= 0.75, the research repo's current cut and `quality.PostFilter`'s default; it was 0.5
+  before October 2026) it keeps 194 events instead of 110, with 44 in common. The fraction of near-null
   measurements (fast axis within 20 degrees of the back azimuth alone; notebook 07 also counts its
-  perpendicular, which gives 90 percent before the fix and 32 percent after, against 44 percent by chance)
-  drops from about two thirds to under a tenth, and the fast directions cluster north-north-east: axial
-  mean 35 degrees (68 percent bootstrap interval about 1 degree either side), circular standard deviation
-  17 degrees, 139 of the 206 between 20 and 40 degrees. The median filtered dt goes from 0.02 to 0.06 s.
-  The research repo's current figures use Q_w >= 0.75, which keeps 194 events (mean 34 degrees, R = 0.86,
-  6 percent near-null). RCM and MILD reproduce their original results exactly, so only STAR's file changed.
+  perpendicular, which gives 93 percent before the fix and 29 percent after, against 44 percent by chance)
+  drops from 70 percent to 6 percent, and the fast directions cluster north-north-east: axial mean 34
+  degrees (68 percent bootstrap interval about 1 degree either side), R = 0.86, circular standard deviation
+  16 degrees, 136 of the 194 between 20 and 40 degrees. The median filtered dt goes from 0.02 to 0.06 s.
+  These match the research repo's figures. RCM and MILD reproduce their original results exactly, so only
+  STAR's file changed.
 - **STAR's amplitudes and clip level** (same report). STAR records 15 to 18 times less than its StationXML
   response implies, on both the EH and EL channels, and its EH channels saturate at about 2.0e4 counts,
   which summit events of M1.1 to 1.6 reach (four of 35 tested). Splitting uses relative amplitudes, so the

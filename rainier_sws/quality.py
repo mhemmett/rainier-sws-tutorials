@@ -9,7 +9,7 @@ PRE-processing gates (decide whether we even attempt a measurement):
 
 POST-processing filter (decides whether a measurement is trusted):
     snr_horizontal >= 2.0
-    quality (Q_w)  >= 0.5     (some scripts use 0.75)
+    quality (Q_w)  >= 0.75    (the research repo's cut since October 2026; it used 0.5 before)
     dt_error       <= 0.05 s
     phi_error      <= 20 deg
     dt             <= dominant_period / 2   (longer = cycle skip, not a delay)
@@ -35,7 +35,7 @@ class PreGates:
 @dataclass(frozen=True)
 class PostFilter:
     snr_min: float = 2.0
-    qw_min: float = 0.5
+    qw_min: float = 0.75
     dt_error_max: float = 0.05
     phi_error_max: float = 20.0
     dt_period_fraction: float = 0.5  # dt <= dominant_period * fraction
