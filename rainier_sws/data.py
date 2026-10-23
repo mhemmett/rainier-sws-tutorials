@@ -119,12 +119,15 @@ def load_topography(path: Path = paths.DEM_TIF) -> tuple[np.ndarray, list[float]
 # Orientations that differ from the archived metadata, keyed by (network, station, location, channel):
 # (azimuth, dip) the channel really has. Add an entry with a dated note whenever a new one is found.
 ORIENTATION_FIXES = {
-    # STAR's horizontals are swapped: the channel labelled EHN points east and EHE points north.
-    # Found in 2026; EarthScope and IRIS MDA still list EHN at 0 deg and EHE at 90 deg. Location 01
-    # is the 2014-onward installation; whether the 2009 installation (location --) was also swapped
-    # is not known.
-    ("UW", "STAR", "01", "EHN"): (90.0, 0.0),
-    ("UW", "STAR", "01", "EHE"): (0.0, 0.0),
+    # STAR's vertical and north channels are exchanged: the channel labelled EHN records vertical
+    # (up-positive) motion and EHZ records north; EHE is east as labelled. So ELZ, the low-gain copy
+    # of EHZ, records north too. Found in October 2026 from the P wave of a regional M4.2 and from
+    # neighbouring stations (S. Han, "UW.STAR.01 and UW.RCS: channel orientation, amplitude, and
+    # clipping", 2026-10-19; the north polarity is the less certain part). EarthScope and IRIS MDA
+    # still list EHZ at dip -90 and EHN at azimuth 0. Location 01 is the 2014-onward installation;
+    # whether the 2009 installation (location --) was also exchanged is not known.
+    ("UW", "STAR", "01", "EHZ"): (0.0, 0.0),
+    ("UW", "STAR", "01", "EHN"): (0.0, -90.0),
 }
 _ORIENTATIONS: pd.DataFrame | None = None
 
@@ -244,7 +247,7 @@ def get_event_stream(station: str, row: pd.Series, network: str = "UW",
     2. If absent and ``allow_download``, request it from EarthScope and, if
        ``save``, append it to the cache as ``fetched_<evid>.mseed``.
     3. Unless ``correct_orientation=False``, rotate the components to true Z, N, E
-       with ``orient_zne`` (this is where STAR's swapped horizontals are fixed).
+       with ``orient_zne`` (this is where STAR's exchanged Z and N are fixed).
        Turn it off only to reproduce results computed before the fix.
 
     Returns a Stream with exactly Z, N, E (or raises with a clear message).

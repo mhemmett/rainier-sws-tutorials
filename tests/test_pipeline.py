@@ -65,15 +65,15 @@ def _synthetic(station, channels, azimuths, dips, t0="2025-07-15"):
     return st
 
 
-def test_star_horizontals_are_swapped():
+def test_star_vertical_and_north_are_exchanged():
     cat = data.load_station_catalog("STAR")
     row = cat[cat.evid == 61504668].iloc[0]
     raw = data.get_event_stream("STAR", row, allow_download=False, correct_orientation=False)
     fixed = data.get_event_stream("STAR", row, allow_download=False)
     assert [tr.stats.channel for tr in fixed] == ["EHZ", "EHN", "EHE"]
-    assert np.array_equal(fixed[0].data, raw.select(channel="EHZ")[0].data)
-    assert np.array_equal(fixed[1].data, raw.select(channel="EHE")[0].data)   # true north was labelled E
-    assert np.array_equal(fixed[2].data, raw.select(channel="EHN")[0].data)   # true east was labelled N
+    assert np.array_equal(fixed[0].data, raw.select(channel="EHN")[0].data)   # true vertical was labelled N
+    assert np.array_equal(fixed[1].data, raw.select(channel="EHZ")[0].data)   # true north was labelled Z
+    assert np.array_equal(fixed[2].data, raw.select(channel="EHE")[0].data)   # east is as labelled
 
 
 def test_nominal_orientation_is_left_alone():
@@ -93,7 +93,7 @@ def test_rotation_from_metadata():
 
 @pytest.mark.slow
 def test_reproduce_figure3_event():
-    # The results CSVs were computed before STAR's swapped horizontals were found, so reproducing
+    # The results CSVs were computed before STAR's exchanged Z and N were found, so reproducing
     # them needs the data as archived. Notebook 05 shows what the corrected data give.
     ref = pd.read_csv(paths.station_results_csv("STAR")).set_index("evid").loc[61504668]
     cat = data.load_station_catalog("STAR")

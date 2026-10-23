@@ -215,21 +215,36 @@ tests/            a few tests, including the reproduction of event 61504668 at S
 
 ## Known facts about the research results (so you do not rediscover them)
 
-- **STAR's horizontal components are swapped**: the channel labelled `EHN` points east and `EHE` points
-  north. The archived metadata (EarthScope, IRIS MDA) still say otherwise. `data.get_event_stream`
-  corrects it (`data.ORIENTATION_FIXES`), and also rotates any channel whose archived azimuth or dip is
-  not nominal (`data/catalog/channel_orientations.csv`). **The STAR results in `results/` were computed
-  before the swap was found**, on the components as labelled; see notebook 05. Re-measured with the
-  components corrected (same incidence angles and parameters), STAR's grade-3 set is 78 events instead of
-  121 with only 12 in common, the fraction of near-null measurements (fast axis within 20 degrees of the back
-  azimuth alone; notebook 07 also counts its perpendicular, which gives 90 percent before the fix) drops from
-  about two thirds to one third, and the fast directions spread out, mostly between
-  0 and 40 degrees with a smaller group near 90 (bimodal, so the axial mean of about 49 degrees is not a
-  useful summary). The research results need to be re-run on corrected data before STAR is interpreted.
+- **STAR's vertical and north channels are exchanged**: the channel labelled `EHN` records vertical
+  (up-positive) motion and `EHZ` records north; `EHE` is east as labelled, and `ELZ`, the low-gain copy of
+  `EHZ`, records north too. Found in October 2026 from the P wave of a regional M4.2 and from neighbouring
+  stations (S. Han, "UW.STAR.01 and UW.RCS (Mount Rainier): channel orientation, amplitude, and clipping",
+  2026-10-19; the north polarity is the less certain part). An earlier version of this repo treated it as a
+  swap of `EHN` and `EHE`; that was wrong. The archived metadata (EarthScope, IRIS MDA) still list `EHZ` as
+  the vertical. `data.get_event_stream` corrects it (`data.ORIENTATION_FIXES`), and also rotates any channel
+  whose archived azimuth or dip is not nominal (`data/catalog/channel_orientations.csv`). **The STAR results
+  in `results/` were computed before the exchange was found**, on the channels as labelled, so the
+  pipeline's "horizontals" were the vertical and east records; see notebook 05. Re-measured with the
+  components corrected (same incidence angles and parameters), STAR's grade-3 set is 212 events instead of
+  121 with 51 in common, the fraction of near-null measurements (fast axis within 20 degrees of the back
+  azimuth alone; notebook 07 also counts its perpendicular, which gives 90 percent before the fix and 31
+  percent after, against 44 percent by chance) drops from about two thirds to under a tenth, and the fast
+  directions cluster north-north-east: axial mean 35 degrees (68 percent bootstrap interval about 1 degree
+  either side), circular standard deviation 17 degrees, 141 of the 212 between 20 and 40 degrees. The median
+  grade-3 dt goes from 0.02 to 0.06 s. The research results need to be re-run on corrected data before STAR
+  is interpreted.
+- **STAR's amplitudes and clip level** (same report). STAR records 15 to 18 times less than its StationXML
+  response implies, on both the EH and EL channels, and its EH channels saturate at about 2.0e4 counts,
+  which summit events of M1.1 to 1.6 reach (four of 35 tested). Splitting uses relative amplitudes, so the
+  gain deficit does not matter here, but a clipped S wave does: screen the larger events for clipping before
+  trusting a measurement. The vertical (`EHN`) has no low-gain backup. RCS (vertical only) is also low, by a
+  factor of about 2 to 4, and clips at 2048 counts.
 - **The measurement is deterministic but ill-conditioned.** The same input always gives the same output
   (that is why event 61504668 reproduces to the digit), but adding noise of 1e-9 counts to the waveforms
   changes Q_w for about one measured STAR event in nine, flips some fast directions by 90 degrees, and
-  moves a few events in or out of grade 3. Per-event results, and the grade-3 set itself, carry an
+  moves a few events in or out of grade 3 (on the archived components; on the corrected ones the same test
+  changes Q_w for 27 of 677 measured events, about one in 25, moves no fast direction by 90 degrees, and adds
+  4 events to grade 3). Per-event results, and the grade-3 set itself, carry an
   uncertainty that the formal phi and dt errors do not show; a perturbation test belongs in the benchmark. The
   same tipping shows up between computing environments: about one STAR event in ten reproduces Michael's
   row in everything except Q_w (notebook 05, exercise 1), so even the archived grade-3 count can differ by
@@ -244,7 +259,7 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   digitized, not on the mountain. Relevant to the clock question (notebook 04b). Other stations' July 2025
   channels are all nominal in the metadata. Older epochs are not: STAR from September 2009 to September
   2010 (the 2009 swarm) has `EHE` at azimuth 270 and `EHZ` at dip +90, which the rotation handles; whether
-  the 2009 horizontals were also swapped is not known.
+  the 2009 installation's vertical and north were also exchanged is not known.
 
 - Stations PANH, OBSR, PARA, RER and COPP yield no measurements because essentially every swarm event
   arrives outside the 45-degree shear-wave window under the velocity model used for ray tracing
@@ -252,9 +267,11 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   velocity model, not about those stations' data.
 - Nearly all rays at STAR arrive from one back azimuth (about 90 degrees) and the measured fast axis is
   also about 90 degrees, so most grade-3 measurements there are "near-null" by geometry. Notebook 07
-  explains why that is the main caveat on the preliminary result. (That fast axis comes from the swapped
-  components; corrected, about a third of the measurements are near-null rather than two thirds. The
-  back-azimuth geometry is unchanged, so the caveat still applies to whatever survives.)
+  explains why that is the main caveat on the preliminary result. (That fast axis comes from the exchanged
+  channels. Corrected, the fast axis is about 35 degrees and under a tenth of the measurements are within 20
+  degrees of the back azimuth, below chance. The back-azimuth geometry is unchanged, so one back azimuth still
+  cannot by itself separate a real fast axis from a polarization effect, but the near-null concentration is
+  gone.)
 - The research pipeline's incidence angles come from 3-D ray tracing (PyKonal) through a Vs model
   derived as iMUSH Vp / 1.73. That code is not included here; notebook 05 uses the stored angles.
 - STAR's travel-time residuals wander by about 100 ms through the swarm with P and S moving together,
