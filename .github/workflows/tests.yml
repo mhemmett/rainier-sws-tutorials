@@ -24,7 +24,9 @@ jobs:
 
       - uses: conda-incubator/setup-miniconda@v3
         with:
-          miniforge-version: latest
+          # pinned: Miniforge 26.9.4-0 (2026-10-22) fails `conda init` on the Windows runners
+          # ("needs sudo conda.exe"); 26.7.2-1 is the last version that passed on all three
+          miniforge-version: 26.7.2-1
           environment-file: environment.yml
           activate-environment: rainier-sws
           conda-remove-defaults: true
