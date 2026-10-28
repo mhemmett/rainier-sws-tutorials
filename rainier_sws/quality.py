@@ -3,6 +3,7 @@
 Two layers of filtering happen in the real pipeline:
 
 PRE-processing gates (decide whether we even attempt a measurement):
+    clip fraction  < 0.97    the S wave did not saturate the digitizer (stations with a known clip level)
     rectilinearity >= 0.5    the P wave looks like a P wave (instrument sane)
     incidence     <= 45 deg  inside the "shear-wave window" at the free surface
     SNR           >= 2.0     the S wave stands out from the noise
@@ -27,6 +28,10 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class PreGates:
+    # peak |counts| in the first second after S over the clip level (data.CLIP_COUNTS). The research
+    # re-run on corrected components applies it; the archived results did not, so pass np.inf to
+    # reproduce those.
+    clip_fraction_max: float = 0.97
     rectilinearity_min: float = 0.5
     incidence_max_deg: float = 45.0
     snr_min: float = 2.0

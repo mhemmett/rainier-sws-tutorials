@@ -197,9 +197,10 @@ rainier_sws/      helper package the notebooks import (read it; it is short)
   paths.py          where things live
   data.py           catalogs, station coordinates, topography, waveforms and instrument responses (cache first,
                     EarthScope second), and component orientation (metadata plus known fixes, rotated to true Z/N/E)
-  measure.py        the single-event measurement, mirroring the research pipeline
-  quality.py        pre-processing gates and the post-processing filter, as named parameters
-  stats.py          axial statistics, Rayleigh test, bootstrap
+  measure.py        the single-event measurement, mirroring the research pipeline, and re-measuring a results table
+  quality.py        pre-processing gates (clipping included) and the post-processing filter, as named parameters
+  reference.py      the directions fast directions are compared with (regional compression, 2009 structure)
+  stats.py          axial statistics, Rayleigh test, bootstrap (event and block), permutation test, null screens
   timing.py         clock errors: catalog residual diagnostic, the chronos noise-correlation recipe, chronfix correction
   sws_functions.py  P-wave polarization, SNR and filter-bank code copied from the research repo
 swspy/            local copy of SWSPy (Hudson et al.), as used by the research repo
@@ -265,6 +266,38 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   (notebook 03, exercise 1). That is the size of the 0.03 s pick shift that changes Q_w (notebook 07,
   section 6). Switching to zero-phase would change every measurement, so it is a decision for the research
   pipeline, not something to change in a lesson.
+- **dt comes in steps, and the formal errors are grid-limited 3-sigma bounds.** SWSPy tries a delay by
+  shifting each component half of it, rounded down to whole samples, so dt comes in steps of 0.02 s at 100 Hz
+  (`measure.dt_step`). phi_error and dt_error are half-widths of a 99.7 percent F-test region on a 2 degree by
+  0.02 s grid: dt_error bottoms out at 0.01 s (321 of STAR's 659 successful corrected measurements) and
+  phi_error tops out near 90 degrees when the region fills the grid (62). They do not shrink with SNR (rank
+  correlation 0.03). Q_w is exactly 0 for 115 of the 659, which looks like a cap value rather than a score.
+- **The SNR gate compares S with the P coda.** The pipeline's noise window lies between P and S (never
+  before their midpoint), so at STAR, with S-P about 0.6 s, it is all P coda. The median SNR is 7, against 36
+  measured against pre-event noise, and it does not depend on magnitude (notebook 03, exercise 2).
+- **dt is largely a label of the filter band.** In STAR's corrected filtered set, 108 of the 136 events
+  filtered at 1-5 Hz have dt 0.06 s, and 28 of the 31 at 5-10 Hz have 0.02 s. The share of 1-5 Hz events
+  changes during the swarm (47 percent on 8 July, 70 on 9-10 July), so the apparent rise of dt through the
+  swarm, and its fall with incidence angle, disappear within one band (notebooks 03, 06, 07). The dt <= T/2
+  cut depends on the band for the same reason.
+- **Nulls of local earthquakes follow the source polarization, not the back azimuth.** For a local S wave
+  the initial polarization is set by the focal mechanism; the back azimuth is the teleseismic (SKS) stand-in.
+  `measure.Measurement.src_pol` records SWSPy's estimate (the results CSVs do not; `measure.remeasure`
+  re-measures a table at about 0.15 s per event). Of STAR's 194 filtered events, 32 lie within 20 degrees of
+  their source polarization or its perpendicular and 57 of their back azimuth, only 5 of them in both (44
+  percent expected by chance); without the 32 the mean fast direction moves from 33.7 to 33.5 degrees. The
+  back-azimuth screen is still worth running as an artifact check: it is what exposed the channel exchange.
+- **STAR's P waves look too horizontal on the corrected components.** The incidence angle estimated from
+  the P-wave particle motion (Jurkevics) has a median of 61 degrees, against 27 from ray tracing, and 778 of
+  901 events come out above 45. On the archived components it was 42. Something about the true vertical
+  record (relative gain?) or the P window is off; not yet explained.
+- **Clipping check.** `quality.PreGates.clip_fraction_max` (peak counts in the first second after S over
+  2.0e4, cut at 0.97; `data.CLIP_COUNTS`) reproduces the research re-run's 33 `fail_clipped` STAR events
+  exactly. It was inferred from that file, not taken from the research code. The archived results had no such
+  check: reproduce them with `PreGates(clip_fraction_max=np.inf)`.
+- **Reference directions.** The regional compression and the 2009 structure both point about NE
+  (`rainier_sws.reference`), and STAR's corrected fast direction is about 34 degrees, so azimuth alone cannot
+  separate stress from structure at STAR.
 - **STAR is still analog telemetry.** Its metadata list a McVCO (analog FM telemetry) in both the 2008 to 2019
   and the current (2014 onward, location `01`) instrument chains, so its samples are timed where they are
   digitized, not on the mountain. Relevant to the clock question (notebook 04b). Other stations' July 2025
