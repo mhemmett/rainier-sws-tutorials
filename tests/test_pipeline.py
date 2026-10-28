@@ -43,6 +43,8 @@ def test_post_filter_on_station_with_no_measurements():
     r = pd.read_csv(paths.station_results_csv("PANH"))
     assert quality.funnel(r)["filtered"] == 0
     assert quality.stage_counts(r)["fail_incidence"] > 400
+    f = quality.post_filtered(r)                      # empty, but with the columns a summary needs
+    assert len(f) == 0 and {"phi", "dt", "quality"} <= set(f.columns)
 
 
 def test_topography_covers_the_summit():

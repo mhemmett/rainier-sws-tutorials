@@ -47,7 +47,7 @@ al.).
 are poorly known, and seismology has contributed little because there were few earthquakes and few
 stations. Now there are many of both. Michael's research asks: *is the extent and orientation of
 the hydrothermal fault-fracture network controlled by local geology (old dikes, crustal faults,
-layered flows) or by the regional stress field (NNE compression from the clockwise rotation of the
+layered flows) or by the regional stress field (NE compression from the clockwise rotation of the
 Pacific Northwest, with a vertical maximum stress under the summit from the weight of the edifice)?
 And does the network change between and during swarms?* The working hypothesis is that local
 geology dominates: fast directions should line up with the structures that relocated seismicity
@@ -66,10 +66,15 @@ and double-difference relocation, including the nodes; (2) run splitting on the 
 percent anisotropy before, during and after each swarm.
 
 **Where these tutorials fit.** Step 2 has been run once, as a proof of concept, on the unrelocated
-PNSN catalog at a handful of permanent stations. It gives about 2.5 percent anisotropy and fast
-directions that diverge from the regional stress and vary across the swarm, which already argues for
-local control. But those numbers are station-dependent and sensitive to ray path, filtering
-thresholds and software choices, and that is the honest state of the science. Your job in these
+PNSN catalog at a handful of permanent stations. Its first version gave about 2.5 percent anisotropy
+and fast directions that diverged from the regional stress, which seemed to argue for local control, but
+STAR's numbers came from exchanged channels (see *Known facts*). Corrected, STAR's fast directions cluster
+at about 34 degrees, close to the regional compression (about NE), and the 2009 structure strikes the same
+way, so at STAR the azimuth alone cannot separate stress from structure; differences between stations and
+changes with time have to. Its percent anisotropy is about 3, and the apparent changes across the swarm are
+at least partly a change in which filter band the pipeline chose (notebook 03). Those numbers are
+station-dependent and sensitive to ray path, filtering thresholds and software choices, and that is the
+honest state of the science. Your job in these
 lessons is to understand the measurement well enough to put error bars on it, to find out which
 thresholds it depends on, to check that the data behind it are sound (station clocks included), and
 by week 8 to run the whole benchmark on every station from one script. Winter quarter builds on
@@ -252,9 +257,9 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   changes Q_w for 27 of 677 measured events, about one in 25, moves no fast direction by 90 degrees, and adds
   4 events to the filtered set). Per-event results, and the filtered set itself, carry an
   uncertainty that the formal phi and dt errors do not show; a perturbation test belongs in the benchmark. The
-  same tipping shows up between computing environments: about one STAR event in ten reproduces Michael's
-  row in everything except Q_w (notebook 05, exercise 1), so even the archived filtered count can differ by
-  an event.
+  same tipping shows up between computing environments: re-measuring all 709 of Michael's successful STAR rows
+  reproduces 642 in every number, 53 differ in Q_w alone and 14 in phi or dt as well, and the archived filtered
+  set comes out as 114 events instead of 110 (8 change membership; notebook 05, section 2).
 - **The filter bank filters causally.** `sws_functions.try_filters` calls ObsPy's bandpass with 2 corners and
   the default `zerophase=False`, which delays the S energy by roughly 30 to 50 ms relative to the pick
   (notebook 03, exercise 1). That is the size of the 0.03 s pick shift that changes Q_w (notebook 07,
