@@ -51,6 +51,15 @@ def test_topography_covers_the_summit():
     assert 4300 < elev.max() < 4400          # Columbia Crest is 4392 m
 
 
+def test_star_response_is_short_period_and_shared():
+    # notebook 03: a 2 Hz geophone through telemetry filters at 20-30 Hz, the same on every channel
+    inv = data.load_inventory("STAR")
+    f = np.array([1.0, 10.0, 40.0])
+    amps = [np.abs(ch.response.get_evalresp_response_for_frequencies(f, output="VEL")) for ch in inv[0][0]]
+    assert len(amps) == 3 and all(np.allclose(a, amps[0]) for a in amps)
+    assert amps[0][1] > 4 * amps[0][0] and amps[0][1] > 20 * amps[0][2]
+
+
 def test_cache_returns_three_channels():
     cat = data.load_station_catalog("STAR")
     row = cat[cat.evid == 61504668].iloc[0]

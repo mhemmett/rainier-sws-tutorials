@@ -6,6 +6,7 @@ DATA = ROOT / "data"
 CATALOG = DATA / "catalog"
 WAVEFORMS = DATA / "waveforms"
 TOPOGRAPHY = DATA / "topography"
+STATIONXML = DATA / "stationxml"
 RESULTS = ROOT / "results"
 FIGURES = ROOT / "figures"
 
@@ -24,6 +25,11 @@ def station_catalog_csv(station: str) -> Path:
 def station_waveform_dir(station: str) -> Path:
     """Directory of cached miniSEED batches for a station."""
     return WAVEFORMS / station.upper()
+
+
+def station_xml(station: str, network: str = "UW") -> Path:
+    """StationXML (channel metadata down to the instrument response), e.g. data/stationxml/UW.STAR.xml."""
+    return STATIONXML / f"{network.upper()}.{station.upper()}.xml"
 
 
 def station_results_csv(station: str, oriented: bool = False) -> Path:

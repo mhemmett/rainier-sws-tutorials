@@ -143,7 +143,7 @@ Do them in order. Each starts with a goal and a time estimate and ends with exer
 | 00 | `00_setup_check` | check the environment, find your way around the repo, and where to learn the shell, git and conda | 10 min (+ the linked tutorials) |
 | 01 | `01_what_is_a_seismogram` | read miniSEED with ObsPy, plot Z/N/E with P and S picks, read a seismogram | 1 h |
 | 02 | `02_data_catalogs_and_maps` | pull station metadata and waveforms from EarthScope; which way the components point; event catalogs and phase picks; map the swarm on Rainier's topography; back azimuth and distance | 2 h |
-| 03 | `03_filtering_spectra_snr` | spectra, bandpass filters, a precise SNR, the filter bank, dominant period | 1.5 h |
+| 03 | `03_filtering_spectra_snr` | where a seismogram's frequencies come from (source, path, instrument, noise); spectra, spectrograms, bandpass filters; what the SNR gate, filter bank and dominant period measure; the timescales of splitting | 2.5 h |
 | 04 | `04_what_is_shear_wave_splitting` | build the splitting measurement from scratch on a synthetic signal; noise, nulls, cycle skips | 2 h |
 | 04b | `04b_timing_and_clock_errors` | what a clock error does to a dataset; find one in the catalog (STAR); measure and fix it with chronos on a synthetic pair; the recipe for the real STAR data | 1.5 h |
 | 05 | `05_single_event_with_swspy` | reproduce Michael's measurement of one real event to the digit with SWSPy, then redo it with STAR's components the right way round | 1.5 h |
@@ -190,8 +190,8 @@ Week 8 ends with a benchmark that runs on more stations. Winter quarter is about
 notebooks/        the lessons, executed, with outputs saved so you can see what to expect
 rainier_sws/      helper package the notebooks import (read it; it is short)
   paths.py          where things live
-  data.py           catalogs, station coordinates, topography, waveforms (cache first, EarthScope second),
-                    and component orientation (metadata plus known fixes, rotated to true Z/N/E)
+  data.py           catalogs, station coordinates, topography, waveforms and instrument responses (cache first,
+                    EarthScope second), and component orientation (metadata plus known fixes, rotated to true Z/N/E)
   measure.py        the single-event measurement, mirroring the research pipeline
   quality.py        pre-processing gates and the post-processing filter, as named parameters
   stats.py          axial statistics, Rayleigh test, bootstrap
@@ -201,9 +201,10 @@ swspy/            local copy of SWSPy (Hudson et al.), as used by the research r
 data/catalog/     PNSN event list, station coordinates, per-station pick catalogs, channel orientations
 data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events)
 data/topography/  USGS 3DEP elevation of the volcano (2 arc-second GeoTIFF)
+data/stationxml/  station metadata down to the instrument response (StationXML), STAR during the swarm
 results/          Michael's preliminary per-station results CSVs (one row per catalog event); STAR's also re-run on
                   corrected channels (`sws_star_strict_oriented_results.csv`)
-tests/            a few tests, including the reproduction of event 61504668 at STAR, the STAR component fix and the synthetic clock recovery
+tests/            a few tests, including the reproduction of event 61504668 at STAR, the STAR component fix, STAR's instrument response and the synthetic clock recovery
 .github/workflows/tests.yml   builds the environment and runs the tests on Windows, macOS and Linux on every push
 ```
 
@@ -311,6 +312,8 @@ Software and methods:
 - Silver, P.G. & Chan, W.W. (1991), *JGR* 96, 16429-16454 (the grid-search method and its errors).
 - Crampin, S. & Peacock, S. (2008), *Wave Motion* 45, 675-722 (review of crustal shear-wave splitting).
 - Savage, M.K. et al. (2010), *JGR* 115, B12321 (MFAST: automatic measurement and quality grading).
+- Baillard, C. et al. (2014), *BSSA* 104, 394-409 (the dominant period used for the cycle-skip cut).
+- Brune, J.N. (1970), *JGR* 75, 4997-5009 (earthquake source spectra and the corner frequency); Hanks, T.C. & Kanamori, H. (1979), *JGR* 84, 2348-2350 (moment magnitude).
 - Fisher, N.I. (1993), *Statistical Analysis of Circular Data*, Cambridge (axial statistics, bootstrap).
 - Ulberg, C.W. et al. (2020), iMUSH local-earthquake tomography (the Vp model behind the research repo's ray tracing).
 
@@ -318,6 +321,7 @@ Background science:
 
 - Shelly, D.R., Moran, S.C. & Thelen, W.A. (2013), *Evidence for fluid-triggered slip in the 2009 Mount Rainier, Washington earthquake swarm*, GRL 40, 1506-1512, doi:10.1002/grl.50354.
 - Finn, C., Sisson, T. & Deszcz-Pan, M. (2001), *Aerogeophysical measurements of collapse-prone hydrothermally altered zones at Mount Rainier volcano*, Nature 409, 600-603.
+- Chapman, M. (2003), *Frequency-dependent anisotropy due to meso-scale fractures in the presence of equant porosity*, Geophys. Prospect. 51, 369-379, doi:10.1046/j.1365-2478.2003.00384.x; Marson-Pidgeon, K. & Savage, M.K. (1997), *Frequency-dependent anisotropy in Wellington, New Zealand*, GRL 24, doi:10.1029/97GL03274 (splitting that depends on frequency; notebook 03).
 - Moran, S.C., Lees, J.M. & Malone, S.D. (1999), *JGR* 104, 10775-10786 (P-wave tomography); Moran, Zimbelman & Malone (2000), *Bull. Volcanol.* 61, 425-436 (the magmatic-hydrothermal model).
 - Hemmett, M.A., *Investigating the fracture network inside Mount Rainier's hydrothermal system*, research proposal and preliminary exam (UW ESS, September 2026).
 
