@@ -84,7 +84,8 @@ def post_filter_mask(results: pd.DataFrame, g: PostFilter = DEFAULT_POST) -> pd.
 
 
 def post_filtered(results: pd.DataFrame, g: PostFilter = DEFAULT_POST) -> pd.DataFrame:
-    """The rows that pass the post-processing filter."""
+    """The rows that pass the post-processing filter (with every measurement column, even if empty)."""
+    results = _complete(results)
     return results[post_filter_mask(results, g)].copy()
 
 
