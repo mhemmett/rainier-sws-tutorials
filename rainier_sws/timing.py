@@ -174,12 +174,23 @@ def travel_time_residuals(cat: pd.DataFrame, sta: pd.DataFrame) -> tuple[pd.Data
     return df, fit
 
 
-def daily_residuals(res: pd.DataFrame, station: str, min_events: int = 5) -> pd.DataFrame:
-    """Daily median P and S residual (and N) for one station."""
+def daily_residuals(res: pd.DataFrame, station: str, min_events: int = 5, n_boot: int = 0,
+                    seed: int = 0) -> pd.DataFrame:
+    """Daily median P and S residual (and N) for one station.
+
+    With ``n_boot > 0`` also the bootstrap standard error of each daily median (``se_p``, ``se_s``):
+    a day with few picks has a median that can move by tens of ms on its own.
+    """
     d = res[res["station"] == station].copy()
     d["day"] = d["origin_time"].dt.floor("D")
     g = d.groupby("day").agg(res_p=("res_p", "median"), res_s=("res_s", "median"), n=("res_p", "size"))
-    return g[g["n"] >= min_events]
+    g = g[g["n"] >= min_events]
+    if n_boot:
+        rng = np.random.default_rng(seed)
+        for col, se in (("res_p", "se_p"), ("res_s", "se_s")):
+            g[se] = [np.std([np.median(rng.choice(x, len(x))) for _ in range(n_boot)])
+                     for x in (d.loc[d["day"] == day, col].dropna().to_numpy() for day in g.index)]
+    return g
 
 
 # ----------------------------------------------------------------------------

@@ -12,10 +12,11 @@ data      : loading catalogs, station coordinates and waveforms (cache first,
             EarthScope second)
 measure   : the single-event splitting measurement, step by step
 quality   : the pre-processing gates, the post-processing filter and the stage bookkeeping
-stats     : circular statistics and bootstrap intervals for phi and dt
+stats     : circular statistics, bootstrap intervals and permutation tests for phi and dt
+reference : the directions fast directions are compared with (regional stress, 2009 structure)
 timing    : clock errors: catalog residual diagnostic, chronos noise-correlation
             recipe, chronfix correction (notebook 04b)
 """
-from . import paths, data, measure, quality, stats, timing  # noqa: F401
+from . import paths, data, measure, quality, reference, stats, timing  # noqa: F401
 
 __version__ = "0.1.0"

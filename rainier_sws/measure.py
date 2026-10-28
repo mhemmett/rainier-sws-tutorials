@@ -41,11 +41,22 @@ class SwsParams:
     sws_method: str = "EV_and_XC"
 
 
+# SWSPy tries a delay by shifting each component half of it, rounded down to whole samples
+# (swspy/splitting/split_windowcheck.py, _phi_dt_grid_search), so only even numbers of samples are tried.
+DT_STEP_SAMPLES = 2
+
+
+def dt_step(sampling_rate: float) -> float:
+    """Spacing of the dt values SWSPy can report, in s (0.02 s at 100 Hz)."""
+    return DT_STEP_SAMPLES / sampling_rate
+
+
 @dataclass
 class Measurement:
     evid: int
     station: str
     stage: str = "ok"
+    clip_fraction: float = np.nan
     back_azimuth: float = np.nan
     rectilinearity: float = np.nan
     incidence_angle_jurkevics: float = np.nan
@@ -58,6 +69,8 @@ class Measurement:
     dt_error: float = np.nan
     quality: float = np.nan
     dominant_period: float = np.nan
+    src_pol: float = np.nan              # initial S polarization, deg from N (SWSPy); what a null lines up with
+    src_pol_error: float = np.nan
     success: bool = False
     error: str = ""
     splitting_object: object = field(default=None, repr=False)
@@ -75,6 +88,22 @@ def pick_offsets(stream: obspy.Stream, row: pd.Series):
     origin, p_time, s_time = to_utc(row["origin_time"]), to_utc(row["p_time"]), to_utc(row["s_time"])
     t0 = stream[0].stats.starttime
     return origin, p_time, s_time, p_time - t0, s_time - t0
+
+
+def clip_fraction(stream: obspy.Stream, s_offset: float, window_s: float = 1.0) -> float:
+    """Peak |counts| (mean removed) in the first ``window_s`` after S, over the station's clip level.
+
+    NaN for stations without a known clip level (``data.CLIP_COUNTS``). With a 1 s window and a cut at
+    0.97 this reproduces the research re-run's 33 ``fail_clipped`` STAR events exactly; it was inferred
+    from that file, not taken from the research code.
+    """
+    from .data import CLIP_COUNTS
+    s = stream[0].stats
+    clip = CLIP_COUNTS.get((s.network, s.station))
+    if clip is None:
+        return np.nan
+    i0, i1 = round(s_offset * s.sampling_rate), round((s_offset + window_s) * s.sampling_rate)
+    return max(float(np.abs(tr.data[i0:i1] - tr.data.mean()).max()) for tr in stream) / clip
 
 
 def measure_event(row: pd.Series, stream: obspy.Stream, station: str, sta_lat: float, sta_lon: float,
@@ -101,6 +130,9 @@ def measure_event(row: pd.Series, stream: obspy.Stream, station: str, sta_lat: f
     m.snr_horizontal, m.filter_band, m.stream_filtered = float(snr), band, best_stream
 
     # 3. Pre-processing gates (in the pipeline's order)
+    m.clip_fraction = clip_fraction(raw, s_off)
+    if m.clip_fraction >= gates.clip_fraction_max:          # False for NaN: no known clip level
+        m.stage = "fail_clipped"; return m
     if np.isnan(m.rectilinearity) or m.rectilinearity < gates.rectilinearity_min:
         m.stage = "fail_rectilinearity"; return m
     if np.isnan(m.incidence_angle) or m.incidence_angle > gates.incidence_max_deg:
@@ -130,10 +162,39 @@ def measure_event(row: pd.Series, stream: obspy.Stream, station: str, sta_lat: f
         m.phi, m.dt = float(r0["phi_from_N"]), float(r0["dt"])
         m.phi_error, m.dt_error = float(r0["phi_err"]), float(r0["dt_err"])
         m.quality, m.dominant_period = float(r0["Q_w"]), float(so.Tmid)
+        m.src_pol, m.src_pol_error = float(r0["src_pol_from_N"]), float(r0["src_pol_from_N_err"])
         m.success = bool(np.isfinite(m.phi) and np.isfinite(m.dt))
     except Exception as exc:  # keep going; record why
         m.stage, m.error = "fail_exception", f"{type(exc).__name__}: {exc}"
     return m
+
+
+def remeasure(results: pd.DataFrame, station: str, correct_orientation: bool = True,
+              gates: PreGates = DEFAULT_PRE, params: SwsParams = SwsParams(), s_shift_s: float = 0.0) -> pd.DataFrame:
+    """Measure again every row of a results table, with its stored ray-traced incidence angle.
+
+    Returns one row per input row (``Measurement.as_row``). Rows whose waveforms are not in the cache
+    come back with stage ``missing_channel``. ``s_shift_s`` moves every S pick (a perturbation test).
+    To reproduce the archived results use ``correct_orientation=False`` and
+    ``gates=PreGates(clip_fraction_max=np.inf)``. STAR takes about 0.15 s per event.
+    """
+    from . import data
+    cat = data.load_station_catalog(station).set_index("evid")
+    lat, lon, _ = data.station_coords(station)
+    rows = []
+    for _, t in results.iterrows():
+        row = cat.loc[t["evid"]].copy()
+        row["evid"] = t["evid"]
+        if s_shift_s:
+            row["s_time"] = row["s_time"] + pd.Timedelta(seconds=s_shift_s)
+        try:
+            st = data.get_event_stream(station, row, allow_download=False, correct_orientation=correct_orientation)
+        except (FileNotFoundError, ValueError):
+            rows.append(Measurement(evid=int(t["evid"]), station=station, stage="missing_channel").as_row())
+            continue
+        rows.append(measure_event(row, st, station, lat, lon, incidence_angle=t["incidence_angle"],
+                                  gates=gates, params=params).as_row())
+    return pd.DataFrame(rows, index=results.index)
 
 
 def phi_0_180(phi: np.ndarray | float) -> np.ndarray:

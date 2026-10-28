@@ -12,7 +12,7 @@ import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from rainier_sws import data, measure, quality, stats, paths  # noqa: E402
+from rainier_sws import data, measure, quality, reference, stats, paths  # noqa: E402
 
 
 def test_axial_mean_wraps():
@@ -126,3 +126,49 @@ def test_reproduce_figure3_event():
     assert m.dt_error == pytest.approx(ref.dt_error)
     assert m.quality == pytest.approx(ref.quality, abs=1e-6)
     assert str(m.filter_band) == ref.filter_band
+    assert np.isfinite(m.src_pol) and m.clip_fraction < quality.DEFAULT_PRE.clip_fraction_max
+
+
+def test_dt_step_and_reference_directions():
+    assert measure.dt_step(100.0) == pytest.approx(0.02)
+    assert 0 <= reference.REGIONAL_COMPRESSION_AZ < 180 and 0 <= reference.STRUCTURE_2009_STRIKE < 180
+
+
+def test_near_axis_screen():
+    assert list(stats.near_axis([0, 30, 85, 100], 0, 20)) == [True, False, True, True]
+    assert list(stats.near_axis([0, 30, 85, 100], 0, 20, perpendicular=False)) == [True, False, False, False]
+    assert stats.chance_near_axis(20) == pytest.approx(80 / 180)
+
+
+def test_permutation_and_block_bootstrap():
+    rng = np.random.default_rng(1)
+    a, b = rng.normal(30, 10, 60), rng.normal(45, 10, 60)
+    d, p = stats.permutation_test(a, b, axial=True, n_perm=500)
+    assert d == pytest.approx(15, abs=5) and p < 0.01
+    _, p_same = stats.permutation_test(a[:30], a[30:], n_perm=500)
+    assert p_same > 0.05
+    m0, lo, hi, _ = stats.block_bootstrap_axial_mean(a, np.repeat(np.arange(12), 5), n_boot=200)
+    assert m0 == pytest.approx(stats.axial_mean(a)[0]) and lo < 0 < hi
+
+
+@pytest.mark.slow
+def test_clip_screen_reproduces_research_rerun():
+    # the research re-run on corrected components stopped 33 STAR events at fail_clipped
+    r = pd.read_csv(paths.station_results_csv("STAR", oriented=True))
+    r = r[r.clip_fraction.notna()]
+    cat = data.load_station_catalog("STAR").set_index("evid")
+    flagged = set()
+    for evid in r.evid:
+        row = cat.loc[evid].copy(); row["evid"] = evid
+        st = data.get_event_stream("STAR", row, allow_download=False)
+        if measure.clip_fraction(st, measure.pick_offsets(st, row)[4]) >= quality.DEFAULT_PRE.clip_fraction_max:
+            flagged.add(evid)
+    assert flagged == set(r.evid[r.stage == "fail_clipped"])
+
+
+def test_remeasure_rows():
+    r = pd.read_csv(paths.station_results_csv("STAR", oriented=True)).set_index("evid")
+    rows = r.loc[[61504668, 62135967]].reset_index()             # the figure-3 event and a clipped one
+    out = measure.remeasure(rows, "STAR")
+    assert list(out.stage) == ["ok", "fail_clipped"]
+    assert out.phi.iloc[0] == pytest.approx(r.loc[61504668, "phi"], abs=1e-6)
