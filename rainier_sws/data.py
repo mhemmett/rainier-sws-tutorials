@@ -114,6 +114,30 @@ def load_topography(path: Path = paths.DEM_TIF) -> tuple[np.ndarray, list[float]
 
 
 # ----------------------------------------------------------------------------
+# Instrument response: repo copy first, EarthScope second
+# ----------------------------------------------------------------------------
+# The epoch of the cached waveforms (the 2025 swarm); instruments change between epochs
+RESPONSE_EPOCH = (UTCDateTime("2025-07-01"), UTCDateTime("2025-09-01"))
+
+
+def load_inventory(station: str, network: str = "UW") -> obspy.Inventory:
+    """StationXML for a station's seismic channels during the swarm, down to the instrument response.
+
+    Reads ``data/stationxml/<NET>.<STA>.xml`` and asks EarthScope only if it is missing,
+    saving what it gets. Mind STAR: the orientations in it are the archived ones (see
+    ``ORIENTATION_FIXES``), and its amplitudes are 15 to 18 times below what its response
+    implies (README); the shape of the response is fine.
+    """
+    path = paths.station_xml(station, network)
+    if not path.exists():
+        inv = Client(FDSN_URL).get_stations(network=network, station=station.upper(), location="*", channel="?H?",
+                                            starttime=RESPONSE_EPOCH[0], endtime=RESPONSE_EPOCH[1], level="response")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        inv.write(str(path), format="STATIONXML")
+    return obspy.read_inventory(str(path))
+
+
+# ----------------------------------------------------------------------------
 # Component orientation: archived metadata, corrected where we know it is wrong
 # ----------------------------------------------------------------------------
 # Orientations that differ from the archived metadata, keyed by (network, station, location, channel):
