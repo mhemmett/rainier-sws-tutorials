@@ -29,9 +29,9 @@ from swspy.splitting import split_windowcheck
 class SwsParams:
     """swspy window / grid-search parameters, with the research-pipeline defaults."""
     s_pick_uncertainty: float = 0.03     # s; S-pick jitter the windows sweep over
-    first_window_start: float = 2        # window boundaries in units of dominant period
+    first_window_start: float = 2        # window starts, in units of s_pick_uncertainty before the S pick
     last_window_start: float = 1
-    first_window_end: float = 1.5
+    first_window_end: float = 1.5        # window ends, in units of the dominant period after the S pick
     last_window_end: float = 2.5
     n_win: int = 7                       # number of window positions tried
     max_t_shift_s: float = 0.2           # largest dt searched
