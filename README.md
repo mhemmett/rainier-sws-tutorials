@@ -149,17 +149,17 @@ Do them in order. Each starts with a goal and a time estimate and ends with exer
 | 01 | `01_what_is_a_seismogram` | read miniSEED with ObsPy, plot Z/N/E with P and S picks, read a seismogram | 1 h |
 | 02 | `02_data_catalogs_and_maps` | pull station metadata and waveforms from EarthScope; which way the components point; event catalogs and phase picks; map the swarm on Rainier's topography; back azimuth and distance | 2 h |
 | 03 | `03_filtering_spectra_snr` | where a seismogram's frequencies come from (source, path, instrument, noise); spectra, spectrograms, bandpass filters; what the SNR gate, filter bank and dominant period measure; the timescales of splitting | 2.5 h |
-| 04 | `04_what_is_shear_wave_splitting` | build the splitting measurement from scratch on a synthetic signal; noise, nulls, cycle skips | 2 h |
-| 04b | `04b_timing_and_clock_errors` | what a clock error does to a dataset; find one in the catalog (STAR); measure and fix it with chronos on a synthetic pair; the recipe for the real STAR data | 1.5 h |
-| 05 | `05_single_event_with_swspy` | reproduce Michael's measurement of one real event to the digit with SWSPy, then redo it with STAR's components the right way round | 1.5 h |
-| 06 | `06_exploring_the_results` | read the per-station results, stage bookkeeping, histograms, rose diagrams | 1.5 h |
-| 07 | `07_uncertainty_and_thresholds` | bootstrap intervals, circular statistics, threshold sweeps, null screening, a benchmark function | 2 to 3 sessions |
+| 04 | `04_what_is_shear_wave_splitting` | build the splitting measurement on a synthetic; noise, nulls, cycle skips; stress vs structure and percent anisotropy; the shear-wave window and LQT; source polarization; one real STAR split | 3 h |
+| 04b | `04b_timing_and_clock_errors` | how a station is timed; travel times, slowness and station terms; find a clock error in the catalog (STAR), with error bars; how much timing matters; ambient noise and the chronos method on a synthetic pair; the recipe for the real STAR data | 2.5 h |
+| 05 | `05_single_event_with_swspy` | reproduce Michael's measurement of one real event to the digit with SWSPy, then redo it with STAR's components the right way round; the ray at the station (LQT, P polarization); what SWSPy does with its 49 windows; Q_w and the formal errors; reading the diagnostic plot | 2.5 h |
+| 06 | `06_exploring_the_results` | read the per-station results and their bookkeeping; what a fast direction means (stress vs structure); roses, a map, percent anisotropy and time, separating the band mix from change in the rock | 2.5 h |
+| 07 | `07_uncertainty_and_thresholds` | formal errors; the dt grid and the band; event and day-block bootstrap; threshold sweeps against a random baseline; nulls against the source polarization; does anything change during the swarm; the benchmark (`rainier_sws.benchmark`) | 4.5 to 5 h |
 
-Suggested pacing at 3 hours a week: weeks 1 to 2 for notebooks 00 to 03, week 3 for 04 and 04b,
-week 4 for 05, week 5 for 06, weeks 6 to 7 for 07, and **week 8 to scale up**: turn the `benchmark`
-function of notebook 07 into a script that runs on every station in `results/` (the nine summit
-stations, the VT background at STAR) and produces one table, with an N, an uncertainty and a
-threshold-sensitivity for each. The *Winter quarter* section below is what comes after.
+Suggested pacing at about 3 hours a week (a little more in weeks 6 and 7): weeks 1 to 2 for notebooks
+00 to 03, week 3 for 04, week 4 for 04b, week 5 for 05, week 6 for 06 and the first session of 07, week 7
+for the rest of 07, and **week 8 to scale up**: turn `rainier_sws.benchmark.run_all()` (notebook 07,
+section 8) into a script that runs on every station in `results/` (the nine summit stations, the VT
+background at STAR) and produces one table, with an N, an uncertainty and a threshold-sensitivity for each. The *Winter quarter* section below is what comes after.
 
 ## Winter quarter
 
@@ -167,7 +167,9 @@ Week 8 ends with a benchmark that runs on more stations. Winter quarter is about
 *data*, in this order of priority. Each item is a self-contained project with a clear "done".
 
 1. **Timing correction applied to the pipeline.** Notebook 04b finds, from the picks alone, that
-   STAR's clock looks to have wandered by about 100 ms peak to peak during the swarm. Measure it
+   STAR's travel-time residuals rose by about 50 to 60 ms, P and S together, between the middle (12-16
+   July) and the end (20-25 July) of the swarm: 65 ms in P (68 percent interval 56 to 70) and 55 ms in S
+   (47 to 61), 52 and 40 ms once each event's distance and depth are removed. Measure it
    properly: run the chronos recipe on continuous STAR data against RCM (4.9 km away) and against the
    nearest Z5 nodes (GPS-timed; nodes 227 and 129 near Camp Muir), get an hourly delta_t(t) with
    error bars, and apply it with chronfix to the cached STAR event windows. Done: the before/after
@@ -200,6 +202,7 @@ rainier_sws/      helper package the notebooks import (read it; it is short)
   measure.py        the single-event measurement, mirroring the research pipeline, and re-measuring a results table
   quality.py        pre-processing gates (clipping included) and the post-processing filter, as named parameters
   reference.py      the directions fast directions are compared with (regional compression, 2009 structure)
+  benchmark.py      the week-8 benchmark: one report per results file (`run`, `run_all`, `summary_table`)
   stats.py          axial statistics, Rayleigh test, bootstrap (event and block), permutation test, null screens
   timing.py         clock errors: catalog residual diagnostic, the chronos noise-correlation recipe, chronfix correction
   sws_functions.py  P-wave polarization, SNR and filter-bank code copied from the research repo
@@ -208,6 +211,7 @@ data/catalog/     PNSN event list, station coordinates, per-station pick catalog
 data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events)
 data/topography/  USGS 3DEP elevation of the volcano (2 arc-second GeoTIFF)
 data/stationxml/  station metadata down to the instrument response (StationXML), STAR during the swarm
+data/timing/      RCM P-wave windows for notebook 04b, exercise 5 (provenance in the CSV header)
 results/          Michael's preliminary per-station results CSVs (one row per catalog event); STAR's also re-run on
                   corrected channels (`sws_star_strict_oriented_results.csv`)
 tests/            a few tests, including the reproduction of event 61504668 at STAR, the STAR component fix, STAR's instrument response and the synthetic clock recovery
@@ -241,7 +245,8 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   measurements (fast axis within 20 degrees of the back azimuth alone; notebook 07 also counts its
   perpendicular, which gives 93 percent before the fix and 29 percent after, against 44 percent by chance)
   drops from 70 percent to 6 percent, and the fast directions cluster north-north-east: axial mean 34
-  degrees (68 percent bootstrap interval about 1 degree either side), R = 0.86, circular standard deviation
+  degrees (68 percent bootstrap interval about 1 degree either side resampling events, about 2 resampling
+  whole days, notebook 07), R = 0.86, circular standard deviation
   16 degrees, 136 of the 194 between 20 and 40 degrees. The median filtered dt goes from 0.02 to 0.06 s.
   These match the research repo's figures. RCM and MILD reproduce their original results exactly, so only
   STAR's file changed.
@@ -289,8 +294,29 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   back-azimuth screen is still worth running as an artifact check: it is what exposed the channel exchange.
 - **STAR's P waves look too horizontal on the corrected components.** The incidence angle estimated from
   the P-wave particle motion (Jurkevics) has a median of 61 degrees, against 27 from ray tracing, and 778 of
-  901 events come out above 45. On the archived components it was 42. Something about the true vertical
-  record (relative gain?) or the P window is off; not yet explained.
+  901 events come out above 45. On the archived components it was 42. They also tilt the wrong way: in 98
+  percent of 300 measured events the upward P motion pairs with horizontal motion *towards* the earthquake
+  (median correlation +0.85), where an upgoing P wave moves away from it. So at least one polarity is
+  reversed: the vertical or both horizontals (neither changes phi), or the east channel alone, which would
+  mirror STAR's fast direction from about 34 to about 146 degrees, close to RCM's 151. A regional or
+  teleseismic P checked against neighbouring stations would decide it. Not yet explained (notebook 04).
+- **The ray-traced travel times are long at the summit.** `travel_time_s` is 1.39 times the observed S
+  travel time (S pick minus origin time) at STAR (median; RCM 1.26, MILD 1.13, LON 1.04), so percent
+  anisotropy at the summit stations would be about 30 to 40 percent higher with observed times (notebook 06,
+  exercise 4). Across stations the Jurkevics angles also fall with distance while the ray-traced ones rise.
+- **How SWSPy picks one answer from 49 windows.** It clusters the window results with DBSCAN after scaling
+  the delays by the largest one, so a single window at the edge of the dt grid can merge two families of
+  fast directions into one cluster, and a tie in phi error is then broken by window order. That is why the
+  figure-3 event comes out east-west on the corrected components (notebook 05, section 7). Q_w uses a signed,
+  unwrapped phi difference, and a cross-correlation lag placeholder forces it to 0. Worth raising for the
+  research pipeline.
+- **No change during the swarm is detectable at STAR alone.** Early (8 to 10 July) against later events,
+  the mean fast direction differs by about 5 degrees and dt by 0.013 s, but shuffling whole days rather than
+  events (events on the same day are not independent) gives p = 0.32 and 0.10, and within the 1-5 Hz band
+  0.45 and 0.20 (notebook 07, section 7).
+- **MILD needs a component check.** Its delays come in steps of 0.04 s (data sampled at 50 Hz), and 92
+  percent of its filtered fast directions lie within 20 degrees of its back azimuth or the perpendicular,
+  against 44 percent by chance: what a component error looks like (notebook 07, section 5).
 - **Clipping check.** `quality.PreGates.clip_fraction_max` (peak counts in the first second after S over
   2.0e4, cut at 0.97; `data.CLIP_COUNTS`) reproduces the research re-run's 33 `fail_clipped` STAR events
   exactly. It was inferred from that file, not taken from the research code. The archived results had no such
@@ -318,8 +344,10 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   gone.)
 - The research pipeline's incidence angles come from 3-D ray tracing (PyKonal) through a Vs model
   derived as iMUSH Vp / 1.73. That code is not included here; notebook 05 uses the stored angles.
-- STAR's travel-time residuals wander by about 100 ms through the swarm with P and S moving together,
-  which is what a clock error looks like and what a velocity-model error does not. Unconfirmed until
+- STAR's travel-time residuals rose by about 50 to 60 ms between 12-16 and 20-25 July with P and S moving
+  together (65 and 55 ms; 52 and 40 with each event's distance and depth removed; notebook 04b), which is
+  what a clock error looks like and what a velocity-model error does not. An analyst-free RCM-STAR P-wave
+  differential gives 55 ms (68 percent 20 to 73). Unconfirmed until
   the continuous-data check in notebook 04b has been run. STAR's location code is `01` and its
   channels are short-period `EH?`.
 
