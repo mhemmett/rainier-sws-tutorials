@@ -53,7 +53,7 @@ class BenchmarkParams:
     incidence_cutoffs: tuple = (30, 35, 40, 45, 50, 55, 60, 70)
     split_time: str = "2025-07-11"       # early/late boundary (UTC): the swarm's first three days against the rest
     n_perm: int = 2000                   # permutations per test
-    sampling_rate_hz: float = 100.0      # for the dt step (every station here records at 100 Hz)
+    sampling_rate_hz: float = 100.0      # dt step of a station with no delays to infer it from (see dt_step_of)
     perturb_shifts_s: tuple = (-0.01, 0.01)   # S-pick shifts of the perturbation test (one sample each way)
     moved_deg: float = 20.0              # a re-measured phi this far from the stored one counts as moved
     seed: int = 0
@@ -170,10 +170,21 @@ def random_subset_swings(larger: pd.DataFrame, n_small: int, n_random=500, seed=
 # ---------------------------------------------------------------------------------------------
 # The pieces of the report
 # ---------------------------------------------------------------------------------------------
+def dt_step_of(dt, sampling_rate_hz: float = 100.0) -> float:
+    """Spacing of a station's reported delays: their greatest common divisor, to the millisecond.
+
+    SWSPy reports dt in steps of two samples (``measure.dt_step``): 0.02 s at 100 Hz, but 0.04 s at
+    MILD, whose data were evidently sampled at 50 Hz. Without delays, two samples at ``sampling_rate_hz``.
+    """
+    dt = np.asarray(dt, dtype=float)
+    ms = np.round(dt[np.isfinite(dt) & (dt > 0)] * 1000).astype(int)
+    return float(np.gcd.reduce(ms)) / 1000 if len(ms) else measure.dt_step(sampling_rate_hz)
+
+
 def pooled_summary(kept: pd.DataFrame, p: BenchmarkParams = DEFAULT_PARAMS) -> pd.Series:
     """N, the mean fast direction with event and block intervals, R, circular SD, Rayleigh p, dt, percent anisotropy."""
     n = len(kept)
-    step = measure.dt_step(p.sampling_rate_hz)
+    step = dt_step_of(column(kept, "dt"), p.sampling_rate_hz)
     out = {"N": n, "mean_phi": np.nan, "phi_lo": np.nan, "phi_hi": np.nan, "phi_block_lo": np.nan,
            "phi_block_hi": np.nan, "n_blocks": 0, "R": np.nan, "circ_sd": np.nan, "rayleigh_p": np.nan,
            "median_dt": np.nan, "mean_dt": np.nan, "dt_step": step, "dt_on_grid": np.nan,

@@ -128,3 +128,10 @@ def test_remeasure_needs_the_cache():
         benchmark.remeasure_filtered(results, "RCM")
     r = benchmark.run("RCM", params=FAST, remeasure=True)
     assert any("skipped" in n for n in r.notes) and len(r.nulls) == 1
+
+
+def test_dt_step_is_inferred_per_station():
+    assert benchmark.dt_step_of([0.04, 0.08, 0.04]) == pytest.approx(0.04)
+    assert benchmark.dt_step_of([0.04, 0.06]) == pytest.approx(0.02)
+    assert benchmark.dt_step_of([]) == pytest.approx(0.02)
+    assert benchmark.run("MILD").summary["dt_step"] == pytest.approx(0.04)   # MILD's delays come in 0.04 s steps
