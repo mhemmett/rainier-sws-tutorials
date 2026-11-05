@@ -5,6 +5,9 @@
 # chronos and chronfix (Kidiwela, UW; notebook 04b) are installed from GitHub by
 # pip; if that step fails (no network), the env still builds and notebook 04b
 # falls back to the local copies of the same numerics in rainier_sws/timing.py.
+# pykonal (White et al., 2020) traces the S rays of notebook 04 (rainier_sws/raytrace.py); it has no conda
+# package or wheels, so pip builds it from source (it needs a C compiler, which macOS, Linux and the
+# Windows CI runners have).
 name: rainier-sws
 channels:
   - conda-forge
@@ -25,3 +28,4 @@ dependencies:
   - pip:
       - chronos @ git+https://github.com/MaleenKidiwela/chronos
       - chronfix @ git+https://github.com/MaleenKidiwela/chronos#subdirectory=chronfix
+      - pykonal==0.4.1

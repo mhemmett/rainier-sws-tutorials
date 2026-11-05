@@ -126,7 +126,7 @@ back here. The lessons and tests run on macOS, Windows and Linux.
    ```bash
    git clone https://github.com/mhemmett/rainier-sws-tutorials.git
    cd rainier-sws-tutorials
-   conda env create -f environment.yml      # about 5 minutes; also pip-installs chronos and chronfix from GitHub
+   conda env create -f environment.yml      # about 5 minutes; also pip-installs chronos and chronfix from GitHub and builds pykonal
    conda activate rainier-sws
    pytest -q                                # about 30 s; the slowest test reproduces one real measurement
    jupyter lab notebooks/
@@ -149,7 +149,7 @@ Do them in order. Each starts with a goal and a time estimate and ends with exer
 | 01 | `01_what_is_a_seismogram` | read miniSEED with ObsPy, plot Z/N/E with P and S picks, read a seismogram | 1 h |
 | 02 | `02_data_catalogs_and_maps` | pull station metadata and waveforms from EarthScope; which way the components point; event catalogs and phase picks; map the swarm on Rainier's topography; back azimuth and distance | 2 h |
 | 03 | `03_filtering_spectra_snr` | where a seismogram's frequencies come from (source, path, instrument, noise); spectra, spectrograms, bandpass filters; what the SNR gate, filter bank and dominant period measure; the timescales of splitting | 2.5 h |
-| 04 | `04_what_is_shear_wave_splitting` | build the splitting measurement on a synthetic; noise, nulls, cycle skips; stress vs structure and percent anisotropy; the shear-wave window and LQT; source polarization; one real STAR split | 3 h |
+| 04 | `04_what_is_shear_wave_splitting` | measure shear-wave splitting on one RCM earthquake with SWSPy, step by step: data (the PNSN catalog and picks from ComCat, the waveforms), pre-processing (orientation, PyKonal ray tracing, rectilinearity, the filter bank and SNR, the gates), the SWSPy analysis, post-processing (the grade-3 cuts, percent anisotropy) and the diagnostic figure in the axial-sws style | 2.5 h |
 | 04b | `04b_timing_and_clock_errors` | how a station is timed; travel times, slowness and station terms; find a clock error in the catalog (STAR), with error bars; how much timing matters; ambient noise and the chronos method on a synthetic pair; the recipe for the real STAR data | 2.5 h |
 | 05 | `05_single_event_with_swspy` | reproduce Michael's measurement of one real event to the digit with SWSPy, then redo it with STAR's components the right way round; the ray at the station (LQT, P polarization); what SWSPy does with its 49 windows; Q_w and the formal errors; reading the diagnostic plot | 2.5 h |
 | 06 | `06_exploring_the_results` | read the per-station results and their bookkeeping; what a fast direction means (stress vs structure); roses, a map, percent anisotropy and time, separating the band mix from change in the rock | 2.5 h |
@@ -197,24 +197,27 @@ Week 8 ends with a benchmark that runs on more stations. Winter quarter is about
 notebooks/        the lessons, executed, with outputs saved so you can see what to expect
 rainier_sws/      helper package the notebooks import (read it; it is short)
   paths.py          where things live
-  data.py           catalogs, station coordinates, topography, waveforms and instrument responses (cache first,
+  data.py           catalogs (and the PNSN catalog and picks live from ComCat), station coordinates, topography, waveforms and instrument responses (cache first,
                     EarthScope second), and component orientation (metadata plus known fixes, rotated to true Z/N/E)
   measure.py        the single-event measurement, mirroring the research pipeline, and re-measuring a results table
-  quality.py        pre-processing gates (clipping included) and the post-processing filter, as named parameters
+  quality.py        the pick-quality filter, the pre-processing gates (clipping included; notebook 04's stricter `SHEAR_WINDOW_PRE`) and the post-processing filter, as named parameters
   reference.py      the directions fast directions are compared with (regional compression, 2009 structure)
   benchmark.py      the week-8 benchmark: one report per results file (`run`, `run_all`, `summary_table`)
   stats.py          axial statistics, Rayleigh test, bootstrap (event and block), permutation test, null screens
   timing.py         clock errors: catalog residual diagnostic, the chronos noise-correlation recipe, chronfix correction
+  plots.py          the splitting diagnostic figure (in the style of the axial-sws methods figures) and the shaded-relief map
+  raytrace.py       PyKonal S-wave rays through the Rainier velocity model: travel time T_S and incidence angle (notebook 04)
   sws_functions.py  P-wave polarization, SNR and filter-bank code copied from the research repo
 swspy/            local copy of SWSPy (Hudson et al.), as used by the research repo
-data/catalog/     PNSN event list, station coordinates, per-station pick catalogs, channel orientations
-data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events)
+data/catalog/     PNSN event list, station coordinates, per-station pick catalogs, channel orientations; `quakeml/`, ComCat phase data for notebook 04's event
+data/waveforms/   cached miniSEED for STAR (10 batch files, about 900 events); `notebook04/`, notebook 04's RCM event
+data/velocity/   the research pipeline's S-wave model of the summit (Vs = iMUSH Vp / 1.73), cropped, for `raytrace.py`
 data/topography/  USGS 3DEP elevation of the volcano (2 arc-second GeoTIFF)
 data/stationxml/  station metadata down to the instrument response (StationXML), STAR during the swarm
 data/timing/      RCM P-wave windows for notebook 04b, exercise 5 (provenance in the CSV header)
 results/          Michael's preliminary per-station results CSVs (one row per catalog event); STAR's also re-run on
                   corrected channels (`sws_star_strict_oriented_results.csv`)
-tests/            a few tests, including the reproduction of event 61504668 at STAR, the STAR component fix, STAR's instrument response and the synthetic clock recovery
+tests/            a few tests, including the reproduction of event 61504668 at STAR and of event 62137112 at RCM (notebook 04), the STAR component fix, STAR's instrument response and the synthetic clock recovery
 .github/workflows/tests.yml   builds the environment and runs the tests on Windows, macOS and Linux on every push
 ```
 
@@ -299,7 +302,7 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   (median correlation +0.85), where an upgoing P wave moves away from it. So at least one polarity is
   reversed: the vertical or both horizontals (neither changes phi), or the east channel alone, which would
   mirror STAR's fast direction from about 34 to about 146 degrees, close to RCM's 151. A regional or
-  teleseismic P checked against neighbouring stations would decide it. Not yet explained (notebook 04).
+  teleseismic P checked against neighbouring stations would decide it. Not yet explained (notebook 05).
 - **The ray-traced travel times are long at the summit.** `travel_time_s` is 1.39 times the observed S
   travel time (S pick minus origin time) at STAR (median; RCM 1.26, MILD 1.13, LON 1.04), so percent
   anisotropy at the summit stations would be about 30 to 40 percent higher with observed times (notebook 06,
@@ -314,6 +317,12 @@ tests/            a few tests, including the reproduction of event 61504668 at S
   the mean fast direction differs by about 5 degrees and dt by 0.013 s, but shuffling whole days rather than
   events (events on the same day are not independent) gives p = 0.32 and 0.10, and within the 1-5 Hz band
   0.45 and 0.20 (notebook 07, section 7).
+- **RCM, and how much the gates decide.** RCM's 509 pairs (both picks of quality >= 0.75, exactly its results file) give 32
+  filtered measurements with the research pipeline's gates, mean fast direction 151 degrees (68 percent bootstrap 148 to 154), NNW-SSE in
+  every period of the swarm, against STAR's NNE. With the stricter gates of notebook 04 (`quality.SHEAR_WINDOW_PRE`: incidence <= 35 degrees,
+  the shear-wave window, and rectilinearity >= 0.7) only 2 pass (62137112 and 62151037): rectilinearity removes 279 pairs and the window
+  179 more (found while preparing notebook 04, November 2026). The mean direction stays NNW-SSE across the gate choices; the number
+  of measurements does not.
 - **MILD needs a component check.** Its delays come in steps of 0.04 s (data sampled at 50 Hz), and 92
   percent of its filtered fast directions lie within 20 degrees of its back azimuth or the perpendicular,
   against 44 percent by chance: what a component error looks like (notebook 07, section 5).

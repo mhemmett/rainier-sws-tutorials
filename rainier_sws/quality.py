@@ -1,6 +1,9 @@
 """Acceptance criteria used by the research pipeline, written down in one place.
 
-Two layers of filtering happen in the real pipeline:
+Three layers of filtering happen in the real pipeline:
+
+PICK quality (decides which earthquake-station pairs enter at all):
+    P pick quality >= 0.75 and S pick quality >= 0.75   (PNSN's 0-1 scale; 1 = best)
 
 PRE-processing gates (decide whether we even attempt a measurement):
     clip fraction  < 0.97    the S wave did not saturate the digitizer (stations with a known clip level)
@@ -24,6 +27,22 @@ from dataclasses import dataclass, asdict
 
 import numpy as np
 import pandas as pd
+
+
+@dataclass(frozen=True)
+class PickQuality:
+    """Both picks of an earthquake-station pair must reach these qualities (PNSN's 0-1 scale).
+
+    The research pipeline's results files hold exactly the pairs with both qualities >= 0.75; the
+    catalog files in ``data/catalog/`` keep everything with both >= 0.5.
+    """
+    p_min: float = 0.75
+    s_min: float = 0.75
+
+
+def pick_quality_mask(catalog: pd.DataFrame, q: PickQuality = PickQuality()) -> pd.Series:
+    """Rows of a pick catalog whose P and S picks are both good enough."""
+    return (catalog["p_quality"] >= q.p_min) & (catalog["s_quality"] >= q.s_min)
 
 
 @dataclass(frozen=True)
@@ -51,6 +70,12 @@ class PostFilter:
 
 DEFAULT_PRE = PreGates()
 DEFAULT_POST = PostFilter()
+
+# Stricter pre-processing gates, used by notebook 04: rays inside the shear-wave window (35 deg, about
+# the critical angle of 35.3 deg for Vp/Vs = 1.73) and a cleaner P wave (rectilinearity 0.7). These are
+# the axial-sws defaults that the research pipeline relaxed to 45 deg and 0.5 for the land stations.
+# The results files and notebooks 05 to 07 use DEFAULT_PRE.
+SHEAR_WINDOW_PRE = PreGates(rectilinearity_min=0.7, incidence_max_deg=35.0, snr_min=2.0)
 
 
 MEASUREMENT_COLUMNS = ["success", "phi", "dt", "phi_error", "dt_error", "quality", "snr_horizontal", "dominant_period"]
