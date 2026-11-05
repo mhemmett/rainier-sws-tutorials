@@ -43,13 +43,39 @@ def load_vs_model(path=VS_MODEL):
             np.transpose(vs, (2, 1, 0)).astype(np.float64))
 
 
+class _NumpyIntpFull:
+    """numpy, except that ``full`` with an integer fill and no dtype makes ``np.intp`` (Py_ssize_t) arrays.
+
+    PyKonal 0.4.1's heap (``pykonal/heapq.pyx``) builds its index with ``np.full(shape, fill_value=-1)`` and
+    then reads it as Py_ssize_t. On Windows with numpy 1.x the default integer is 32-bit, so the solver stops
+    with "Buffer dtype mismatch, expected 'Py_ssize_t' but got 'long'". Elsewhere the two are the same type
+    and this changes nothing.
+    """
+
+    def __getattr__(self, name):
+        return getattr(np, name)
+
+    @staticmethod
+    def full(shape, fill_value, dtype=None, **kwargs):
+        if dtype is None and isinstance(fill_value, (int, np.integer)) and not isinstance(fill_value, bool):
+            dtype = np.intp
+        return np.full(shape, fill_value, dtype=dtype, **kwargs)
+
+
+def _import_pykonal():
+    import pykonal
+    import pykonal.heapq
+    if np.dtype(np.int_) != np.dtype(np.intp):              # Windows, numpy 1.x
+        pykonal.heapq.np = _NumpyIntpFull()
+    return pykonal
+
+
 class StationRayTracer:
     """Solve the eikonal equation once per station (the station is the source), then read any
     earthquake's travel time and ray off the cached field."""
 
     def __init__(self, model=None):
-        import pykonal
-        self._pykonal = pykonal
+        self._pykonal = _import_pykonal()
         self.x, self.y, self.z, self.vs = model if model is not None else load_vs_model()
         self._d = (self.x[1] - self.x[0], self.y[1] - self.y[0], self.z[1] - self.z[0])
         self._o = (self.x[0], self.y[0], self.z[0])
