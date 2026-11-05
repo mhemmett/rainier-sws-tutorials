@@ -15,6 +15,7 @@ EVENTS_CSV = CATALOG / "rainier_events.csv"
 STRICT_CATALOG_CSV = CATALOG / "rainier_catalog_strict.csv"
 DEM_TIF = TOPOGRAPHY / "rainier_3dep_2arcsec.tif"
 ORIENTATIONS_CSV = CATALOG / "channel_orientations.csv"
+QUAKEML = CATALOG / "quakeml"   # per-event picks downloaded from USGS ComCat (data.load_event_picks)
 
 
 def station_catalog_csv(station: str) -> Path:

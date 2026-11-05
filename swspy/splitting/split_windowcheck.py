@@ -2324,7 +2324,6 @@ class create_splitting_object:
                 CS = phi_dt_ax.contourf(X, Y, Z, levels=20, cmap="magma")
                 CS2 = phi_dt_ax.contour(CS, levels=CS.levels[1::2], colors='w', alpha=0.25)
                 phi_dt_ax.errorbar(dt_curr , phi_curr, xerr=dt_err_curr, yerr=phi_err_curr, c='g', capsize=20)
-                phi_dt_ax.tickparams(fontsize=160)
             else:
                 # Setup new axes:
                 phi_dt_ax_layer1 = phi_dt_ax.inset_axes([0, 0, 1.0, 0.5])#([0, 0, 0.5, 1.0])

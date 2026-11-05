@@ -38,9 +38,20 @@ DEM_SIZE = (1080, 720)  # columns, rows: 2 arc-seconds (about 60 m) per pixel
 def load_station_catalog(station: str) -> pd.DataFrame:
     """One row per earthquake with a reviewed P and S pick at ``station``.
 
+    Reads ``data/catalog/rainier_catalog_strict_<STATION>.csv`` if it exists, otherwise that
+    station's rows of the combined ``rainier_catalog_strict.csv`` (the same rows: the research
+    repo cuts the per-station files out of the combined one). Both P and S picks have quality
+    >= 0.5 in these files; the pipeline asks for more (``quality.PickQuality``).
     Times come back as timezone-aware pandas Timestamps (UTC).
     """
-    cat = pd.read_csv(paths.station_catalog_csv(station))
+    path = paths.station_catalog_csv(station)
+    if path.exists():
+        cat = pd.read_csv(path)
+    else:
+        cat = pd.read_csv(paths.STRICT_CATALOG_CSV)
+        cat = cat[cat["station"] == station.upper()].reset_index(drop=True)
+        if cat.empty:
+            raise KeyError(f"{station} has no picks in {paths.STRICT_CATALOG_CSV.name}")
     for c in TIME_COLUMNS:
         cat[c] = pd.to_datetime(cat[c], utc=True, format="ISO8601")
     return cat
@@ -56,6 +67,81 @@ def load_events() -> pd.DataFrame:
     ev = pd.read_csv(paths.EVENTS_CSV)
     ev["time"] = pd.to_datetime(ev["datetime"], unit="s", utc=True)
     return ev
+
+
+# ----------------------------------------------------------------------------
+# The PNSN catalog, live from USGS ComCat
+# ----------------------------------------------------------------------------
+# PNSN (network code UW) sends every event it locates to the USGS's national catalog, ComCat, where
+# its id is "uw" + the PNSN evid. ComCat serves the locations through the standard FDSN event service
+# and each event's picks as a "phase-data" QuakeML file.
+COMCAT_FDSN = "USGS"
+COMCAT_DETAIL_URL = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/uw{evid}.geojson"
+SWARM_2025 = dict(starttime=UTCDateTime("2025-07-08"), endtime=UTCDateTime("2025-08-26"),
+                  latitude=46.853, longitude=-121.760, maxradius=0.1)   # the summit, 0.1 deg (about 11 km)
+
+# PNSN's pick quality (1 = best) is stored in ComCat's QuakeML as a time uncertainty in seconds. The table
+# is one to one: checked on 1,223 picks of 40 swarm events against PNSN's own export (November 2026).
+PNSN_QUALITY_FROM_UNCERTAINTY = {0.03: 1.0, 0.06: 0.75, 0.15: 0.5, 0.30: 0.25}
+
+
+def fetch_comcat_events(**query) -> pd.DataFrame:
+    """PNSN's located earthquakes from ComCat, one row per event (live request, a few seconds).
+
+    Keyword arguments go to ``obspy.clients.fdsn.Client.get_events``; the default is the 2025 swarm
+    (``SWARM_2025``). Columns match ``load_events``: evid, time, lat, lon, depth (km below sea level),
+    magnitude.
+    """
+    q = {**SWARM_2025, **query}
+    cat = Client(COMCAT_FDSN).get_events(**q)
+    rows = []
+    for ev in cat:
+        o, mag = ev.preferred_origin() or ev.origins[0], ev.preferred_magnitude() or ev.magnitudes[0]
+        evid = ev.resource_id.id.split("eventid=")[-1].split("&")[0]
+        rows.append({"evid": int(evid[2:]) if evid.startswith("uw") else evid,
+                     "time": pd.Timestamp(o.time.datetime, tz="UTC"), "lat": o.latitude, "lon": o.longitude,
+                     "depth": o.depth / 1000, "magnitude": mag.mag, "mag_type": mag.magnitude_type})
+    return pd.DataFrame(rows).sort_values("time").reset_index(drop=True)
+
+
+def _phase_data_url(evid: int) -> str:
+    import json
+    with urllib.request.urlopen(COMCAT_DETAIL_URL.format(evid=evid), timeout=30) as resp:
+        detail = json.load(resp)
+    return detail["properties"]["products"]["phase-data"][0]["contents"]["quakeml.xml"]["url"]
+
+
+def load_event_picks(evid: int, allow_download: bool = True) -> pd.DataFrame:
+    """Every P and S pick PNSN made for one earthquake, one row per pick.
+
+    Reads ``data/catalog/quakeml/uw<evid>.xml`` and, if it is missing and ``allow_download``, fetches it
+    from ComCat first (the event's phase-data product) and saves it. Columns: network, station,
+    location, channel, phase, time (UTCDateTime), uncertainty (s), quality (PNSN's 0-1 scale, from
+    ``PNSN_QUALITY_FROM_UNCERTAINTY``), and the arrival's distance (km) and time residual (s) from
+    PNSN's location.
+    """
+    path = paths.QUAKEML / f"uw{evid}.xml"
+    if not path.exists():
+        if not allow_download:
+            raise FileNotFoundError(f"{path.name} not cached and downloads disabled")
+        with urllib.request.urlopen(_phase_data_url(evid), timeout=30) as resp:
+            raw = resp.read()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(raw)
+    ev = obspy.read_events(str(path))[0]
+    origin = ev.preferred_origin() or ev.origins[0]
+    picks = {p.resource_id.id: p for p in ev.picks}
+    rows = []
+    for a in origin.arrivals:
+        p = picks[a.pick_id.id]
+        unc = p.time_errors.uncertainty
+        w = p.waveform_id
+        rows.append({"network": w.network_code, "station": w.station_code, "location": w.location_code or "",
+                     "channel": w.channel_code, "phase": a.phase, "time": p.time, "uncertainty": unc,
+                     "quality": PNSN_QUALITY_FROM_UNCERTAINTY.get(round(unc, 2), np.nan) if unc is not None else np.nan,
+                     "distance_km": a.distance * 111.19 if a.distance is not None else np.nan,
+                     "residual_s": a.time_residual})
+    return pd.DataFrame(rows).sort_values(["distance_km", "phase"]).reset_index(drop=True)
 
 
 def load_stations() -> pd.DataFrame:
