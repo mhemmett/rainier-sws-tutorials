@@ -28,6 +28,8 @@ def test_star_residuals_move_together():
     r = np.corrcoef(d.res_p, d.res_s)[0, 1]
     assert len(d) >= 15 and r > 0.5
     assert (d.res_p.max() - d.res_p.min()) > 0.06    # at least 60 ms peak to peak
+    se = timing.daily_residuals(res, "STAR", n_boot=50)
+    assert (se.se_p > 0).all() and (se.se_s > 0).all() and len(se) == len(d)
 
 
 @pytest.mark.slow

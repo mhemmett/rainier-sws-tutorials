@@ -113,6 +113,11 @@ def load_topography(path: Path = paths.DEM_TIF) -> tuple[np.ndarray, list[float]
     return elev, [lon0, lon0 + ncols * dlon, lat0 - nrows * dlat, lat0]
 
 
+# Counts at which a station's seismic channels saturate, where known (README: STAR's EH channels at about
+# 2.0e4, found by S. Han, 2026-10-19). Stations not listed are not checked for clipping.
+CLIP_COUNTS = {("UW", "STAR"): 2.0e4}
+
+
 # ----------------------------------------------------------------------------
 # Instrument response: repo copy first, EarthScope second
 # ----------------------------------------------------------------------------
