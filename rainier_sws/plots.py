@@ -28,6 +28,7 @@ import obspy
 import matplotlib.ticker as mticker
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import LightSource, Normalize
+from matplotlib.lines import Line2D
 
 from swspy.splitting import split_windowcheck as swc
 
@@ -341,6 +342,13 @@ def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_l
         ax.ticklabel_format(useOffset=False, style="plain")
         ax.grid(False)
     axes[0].set_ylabel("Latitude (°)", fontsize=13, fontweight="bold")
+    key = [Line2D([], [], ls="", marker="^", ms=11, mfc="#FFD700", mec="k", mew=0.8, label="Station"),
+           Line2D([], [], ls="", marker="^", ms=10, mfc="#C04000", mec="k", mew=0.8, label="Volcano")]
+    if event_lat is not None and event_lon is not None:
+        key.append(Line2D([], [], ls="", marker="*", ms=11, mfc="white", mec="k", mew=0.8, label="This earthquake"))
+    if events is not None:
+        key.append(Line2D([], [], ls="", marker="o", ms=3, mfc="black", mec="none", label="All earthquakes"))
+    axes[0].legend(handles=key, loc="upper left", fontsize=10, framealpha=0.85)
     axes[0].set_title("Fast Direction - Fracture Orientation", fontsize=14, fontweight="bold")
     axes[1].set_title("Percent Anisotropy - Fracture Density by Back Azimuth", fontsize=14, fontweight="bold")
     if title:
