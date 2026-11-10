@@ -15,13 +15,20 @@
 phi in B, E and F is measured from Q (the ray frame), as SWSPy searches it; phi from north is phi from Q
 plus the back azimuth. The helpers below it return the pieces the figure is made of, so a notebook can
 draw one of them on its own.
+
+``splitting_map_figure`` puts one measurement on the map in the style of the project's summary figure
+(``mt-rainier/scripts/plot_fast_directions_and_anisotropy_4period_panel_v5.py``): the fast direction as a
+red rose on the station, and the percent anisotropy as a blue wedge along the back azimuth.
 """
 from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
-from matplotlib.colors import LightSource
+import matplotlib.ticker as mticker
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import LightSource, Normalize
+from matplotlib.lines import Line2D
 
 from swspy.splitting import split_windowcheck as swc
 
@@ -276,3 +283,94 @@ def shaded_relief():
         dx=(extent[1] - extent[0]) / elev.shape[1] * KM_PER_DEG_LON * 1e3,
         dy=(extent[3] - extent[2]) / elev.shape[0] * KM_PER_DEG_LAT * 1e3)
     return relief, extent
+
+
+MAP_LON_RANGE = (SUMMIT[1] - 0.065, SUMMIT[1] + 0.065)          # the size of the summary figure's panels,
+MAP_LAT_RANGE = (SUMMIT[0] - 0.0375, SUMMIT[0] + 0.0375)        # centred on the summit
+SUMMIT_LABEL_LAT = 46.87                                        # the summit's label sits here, clear of the swarm
+ROSE_BIN_DEG = 10.0                                             # width of a rose petal and of a back-azimuth wedge
+ROSE_FRAC_OF_PANEL = 0.48                                       # width of a rose, as a fraction of its map panel
+PCT_ANISOTROPY_RANGE = (1.0, 4.0)                               # colour scale, about the span of the summary figure
+
+
+def _bare_polar(fig, ax, lon, lat, frac=ROSE_FRAC_OF_PANEL):
+    """A transparent polar axes centred on (lon, lat) of map ``ax``: north up, clockwise, nothing drawn."""
+    pos = ax.get_position()
+    x, y = fig.transFigure.inverted().transform(ax.transData.transform((lon, lat)))
+    w, h = frac * pos.width, frac * pos.height
+    rose = fig.add_axes([x - w / 2, y - h / 2, w, h], projection="polar")
+    rose.set_theta_zero_location("N"); rose.set_theta_direction(-1)
+    rose.patch.set_alpha(0.0); rose.spines["polar"].set_visible(False)
+    rose.set_xticks([]); rose.set_yticks([]); rose.grid(False)
+    rose.set_ylim(0, 1.15)
+    return rose
+
+
+def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_lon: float, events=None,
+                         event_lat: float | None = None, event_lon: float | None = None,
+                         title: str | None = None, pct_range: tuple[float, float] = PCT_ANISOTROPY_RANGE):
+    """One measurement on the map, in two panels, in the style of the project's summary figure.
+
+    Left: the fast direction as a red rose centred on the station (one petal each way, ``ROSE_BIN_DEG`` wide,
+    because a fast direction is an axis). Right: a wedge from the station along the back azimuth, coloured by
+    ``pct_anisotropy``. The station's triangle is drawn on top in both. ``events`` (columns ``lon``, ``lat``)
+    are drawn as dots, and the measured earthquake (``event_lat``, ``event_lon``) as a white star.
+    """
+    (lon0, lon1), (lat0, lat1) = MAP_LON_RANGE, MAP_LAT_RANGE
+    elev, full = data.load_topography()                         # cropped to the map, then lit as in the summary figure
+    cols = slice(*np.round((np.array([lon0, lon1]) - full[0]) / (full[1] - full[0]) * elev.shape[1]).astype(int))
+    rows = slice(*np.round((full[3] - np.array([lat1, lat0])) / (full[3] - full[2]) * elev.shape[0]).astype(int))
+    relief = LightSource(azdeg=315, altdeg=45).shade(elev[rows, cols], cmap=plt.cm.gray, vert_exag=1.5, blend_mode="overlay")
+    extent = [lon0, lon1, lat0, lat1]
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.9), sharey=True)
+    fig.subplots_adjust(left=0.07, right=0.90, bottom=0.11, top=0.84, wspace=0.06)
+    for ax in axes:
+        ax.imshow(relief, extent=extent, aspect="auto", alpha=0.45, zorder=0)
+        if events is not None:
+            ax.scatter(events.lon, events.lat, s=4, c="black", alpha=0.5, edgecolors="none", zorder=5)
+        if event_lat is not None and event_lon is not None:
+            ax.plot(event_lon, event_lat, "*", ms=11, mfc="white", mec="k", mew=0.8, zorder=27)
+        ax.plot(SUMMIT[1], SUMMIT[0], "^", ms=13, mfc="#C04000", mec="k", mew=0.8, zorder=25)
+        ax.text(SUMMIT[1], SUMMIT_LABEL_LAT, "Mt. Rainier", ha="center", va="center", fontsize=12, fontweight="bold",
+                zorder=26)
+        ax.annotate(f"{m.station}\nN=1", (station_lon, station_lat), xytext=(34, 14), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=11, fontweight="bold", zorder=30)
+        ax.set(xlim=(lon0, lon1), ylim=(lat0, lat1), aspect=1 / np.cos(np.deg2rad(SUMMIT[0])))
+        ax.set_xlabel("Longitude (°)", fontsize=13, fontweight="bold")
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=4))
+        ax.yaxis.set_major_locator(mticker.MultipleLocator(0.02))
+        ax.ticklabel_format(useOffset=False, style="plain")
+        ax.grid(False)
+    axes[0].set_ylabel("Latitude (°)", fontsize=13, fontweight="bold")
+    key = [Line2D([], [], ls="", marker="^", ms=11, mfc="#FFD700", mec="k", mew=0.8, label="Station"),
+           Line2D([], [], ls="", marker="^", ms=10, mfc="#C04000", mec="k", mew=0.8, label="Volcano")]
+    if event_lat is not None and event_lon is not None:
+        key.append(Line2D([], [], ls="", marker="*", ms=11, mfc="white", mec="k", mew=0.8, label="This earthquake"))
+    if events is not None:
+        key.append(Line2D([], [], ls="", marker="o", ms=3, mfc="black", mec="none", label="All earthquakes"))
+    axes[0].legend(handles=key, loc="upper left", fontsize=10, framealpha=0.85)
+    axes[0].set_title("Fast Direction - Fracture Orientation", fontsize=14, fontweight="bold")
+    axes[1].set_title("Percent Anisotropy - Fracture Density by Back Azimuth", fontsize=14, fontweight="bold")
+    if title:
+        fig.suptitle(title, fontsize=16, fontweight="bold")
+    fig.canvas.draw()                                           # fixes the panels' positions for the roses
+
+    width = np.deg2rad(ROSE_BIN_DEG)
+    centre = lambda az: np.deg2rad((np.floor(np.mod(az, 360) / ROSE_BIN_DEG) + 0.5) * ROSE_BIN_DEG)   # its bin's centre
+    rose = _bare_polar(fig, axes[0], station_lon, station_lat)
+    rose.bar([centre(m.phi), centre(m.phi + 180)], [1, 1], width=width, color="red", edgecolor="black", lw=0.4, alpha=0.9)
+
+    norm, cmap = Normalize(*pct_range), plt.get_cmap("Blues")
+    wedge = _bare_polar(fig, axes[1], station_lon, station_lat)
+    wedge.bar([centre(m.back_azimuth)], [1], width=width, color=cmap(norm(pct_anisotropy)), edgecolor="black", lw=0.4,
+              alpha=0.95)
+    for polar in (rose, wedge):                                 # the station, on top of the petals and the wedge
+        polar.scatter([0], [0], marker="^", s=230, color="#FFD700", edgecolors="black", lw=0.8, zorder=50, clip_on=False)
+    axes[1].text(0.97, 0.03, f"A = {pct_anisotropy:.2f}%", transform=axes[1].transAxes, ha="right", va="bottom",
+                 fontsize=14, fontweight="bold", zorder=22,
+                 bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7, edgecolor="none"))
+    pos = axes[1].get_position()
+    cbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=fig.add_axes([pos.x1 + 0.012, pos.y0, 0.018, pos.height]))
+    cbar.set_label("Anisotropy (%)", fontsize=13, fontweight="bold")
+    cbar.ax.grid(False)
+    return fig
