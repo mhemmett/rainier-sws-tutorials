@@ -28,11 +28,10 @@ import obspy
 import matplotlib.ticker as mticker
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import LightSource, Normalize
-from matplotlib.patches import FancyArrowPatch
 
 from swspy.splitting import split_windowcheck as swc
 
-from . import data, reference
+from . import data
 
 SUMMIT = (46.8529, -121.7604)                                  # lat, lon of the summit (notebook 02)
 KM_PER_DEG_LAT = 111.32
@@ -285,8 +284,8 @@ def shaded_relief():
     return relief, extent
 
 
-MAP_LON_RANGE = (-121.83, -121.70)                              # the extent of the project's summary figure
-MAP_LAT_RANGE = (46.80, 46.875)
+MAP_LON_RANGE = (SUMMIT[1] - 0.065, SUMMIT[1] + 0.065)          # the size of the summary figure's panels,
+MAP_LAT_RANGE = (SUMMIT[0] - 0.0375, SUMMIT[0] + 0.0375)        # centred on the summit
 ROSE_BIN_DEG = 10.0                                             # width of a rose petal and of a back-azimuth wedge
 ROSE_FRAC_OF_PANEL = 0.48                                       # width of a rose, as a fraction of its map panel
 PCT_ANISOTROPY_RANGE = (1.0, 4.0)                               # colour scale, about the span of the summary figure
@@ -305,26 +304,14 @@ def _bare_polar(fig, ax, lon, lat, frac=ROSE_FRAC_OF_PANEL):
     return rose
 
 
-def _draw_shmax(ax, azimuth, centre=(0.72, 0.14), half_len=0.11):
-    """Two white arrows pointing inwards along ``azimuth`` (deg from north), in axes coordinates, labelled S_Hmax."""
-    box_w, box_h = ax.get_window_extent().size                  # equal lengths on screen, so the azimuth is true
-    dx = half_len * np.sin(np.deg2rad(azimuth)) * box_h / box_w
-    dy = half_len * np.cos(np.deg2rad(azimuth))
-    for sign in (1, -1):
-        ax.add_patch(FancyArrowPatch((centre[0] + sign * dx, centre[1] + sign * dy), centre, transform=ax.transAxes,
-                                     arrowstyle="simple,tail_width=0.45,head_width=1.0,head_length=0.9",
-                                     mutation_scale=16, lw=1.2, facecolor="white", edgecolor="black", zorder=40))
-    ax.text(centre[0] + 0.03, centre[1] - 0.03, r"$\mathbf{S_{Hmax}}$", transform=ax.transAxes, fontsize=16,
-            color="white", ha="left", va="center", zorder=41)
-
-
 def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_lon: float, events=None,
                          title: str | None = None, pct_range: tuple[float, float] = PCT_ANISOTROPY_RANGE):
     """One measurement on the map, in two panels, in the style of the project's summary figure.
 
     Left: the fast direction as a red rose centred on the station (one petal each way, ``ROSE_BIN_DEG`` wide,
-    because a fast direction is an axis), with the regional S_Hmax. Right: a wedge from the station along the
-    back azimuth, coloured by ``pct_anisotropy``. ``events`` (columns ``lon``, ``lat``) are drawn as dots.
+    because a fast direction is an axis). Right: a wedge from the station along the back azimuth, coloured by
+    ``pct_anisotropy``. The station's triangle is drawn on top in both. ``events`` (columns ``lon``, ``lat``)
+    are drawn as dots.
     """
     (lon0, lon1), (lat0, lat1) = MAP_LON_RANGE, MAP_LAT_RANGE
     elev, full = data.load_topography()                         # cropped to the map, then lit as in the summary figure
@@ -339,7 +326,7 @@ def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_l
         if events is not None:
             ax.scatter(events.lon, events.lat, s=4, c="black", alpha=0.5, edgecolors="none", zorder=5)
         ax.plot(SUMMIT[1], SUMMIT[0], "^", ms=13, mfc="#C04000", mec="k", mew=0.8, zorder=25)
-        ax.annotate("Mt. Rainier", (SUMMIT[1], SUMMIT[0]), xytext=(0, 7), textcoords="offset points", ha="center",
+        ax.annotate("Mt. Rainier", (SUMMIT[1], SUMMIT[0]), xytext=(0, 13), textcoords="offset points", ha="center",
                     va="bottom", fontsize=12, fontweight="bold", zorder=26)
         ax.annotate(f"{m.station}\nN=1", (station_lon, station_lat), xytext=(34, 14), textcoords="offset points",
                     ha="center", va="bottom", fontsize=11, fontweight="bold", zorder=30)
@@ -360,13 +347,13 @@ def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_l
     centre = lambda az: np.deg2rad((np.floor(np.mod(az, 360) / ROSE_BIN_DEG) + 0.5) * ROSE_BIN_DEG)   # its bin's centre
     rose = _bare_polar(fig, axes[0], station_lon, station_lat)
     rose.bar([centre(m.phi), centre(m.phi + 180)], [1, 1], width=width, color="red", edgecolor="black", lw=0.4, alpha=0.9)
-    _draw_shmax(axes[0], reference.REGIONAL_COMPRESSION_AZ)
 
     norm, cmap = Normalize(*pct_range), plt.get_cmap("Blues")
-    axes[1].scatter([station_lon], [station_lat], marker="^", s=230, color="#FFD700", edgecolors="black", lw=0.8, zorder=20)
     wedge = _bare_polar(fig, axes[1], station_lon, station_lat)
     wedge.bar([centre(m.back_azimuth)], [1], width=width, color=cmap(norm(pct_anisotropy)), edgecolor="black", lw=0.4,
               alpha=0.95)
+    for polar in (rose, wedge):                                 # the station, on top of the petals and the wedge
+        polar.scatter([0], [0], marker="^", s=230, color="#FFD700", edgecolors="black", lw=0.8, zorder=50, clip_on=False)
     axes[1].text(0.97, 0.03, f"A = {pct_anisotropy:.2f}%", transform=axes[1].transAxes, ha="right", va="bottom",
                  fontsize=14, fontweight="bold", zorder=22,
                  bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7, edgecolor="none"))
