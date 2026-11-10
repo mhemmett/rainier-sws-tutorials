@@ -306,13 +306,14 @@ def _bare_polar(fig, ax, lon, lat, frac=ROSE_FRAC_OF_PANEL):
 
 
 def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_lon: float, events=None,
+                         event_lat: float | None = None, event_lon: float | None = None,
                          title: str | None = None, pct_range: tuple[float, float] = PCT_ANISOTROPY_RANGE):
     """One measurement on the map, in two panels, in the style of the project's summary figure.
 
     Left: the fast direction as a red rose centred on the station (one petal each way, ``ROSE_BIN_DEG`` wide,
     because a fast direction is an axis). Right: a wedge from the station along the back azimuth, coloured by
     ``pct_anisotropy``. The station's triangle is drawn on top in both. ``events`` (columns ``lon``, ``lat``)
-    are drawn as dots.
+    are drawn as dots, and the measured earthquake (``event_lat``, ``event_lon``) as a white star.
     """
     (lon0, lon1), (lat0, lat1) = MAP_LON_RANGE, MAP_LAT_RANGE
     elev, full = data.load_topography()                         # cropped to the map, then lit as in the summary figure
@@ -326,6 +327,8 @@ def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_l
         ax.imshow(relief, extent=extent, aspect="auto", alpha=0.45, zorder=0)
         if events is not None:
             ax.scatter(events.lon, events.lat, s=4, c="black", alpha=0.5, edgecolors="none", zorder=5)
+        if event_lat is not None and event_lon is not None:
+            ax.plot(event_lon, event_lat, "*", ms=11, mfc="white", mec="k", mew=0.8, zorder=27)
         ax.plot(SUMMIT[1], SUMMIT[0], "^", ms=13, mfc="#C04000", mec="k", mew=0.8, zorder=25)
         ax.text(SUMMIT[1], SUMMIT_LABEL_LAT, "Mt. Rainier", ha="center", va="center", fontsize=12, fontweight="bold",
                 zorder=26)
