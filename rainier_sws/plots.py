@@ -286,6 +286,7 @@ def shaded_relief():
 
 MAP_LON_RANGE = (SUMMIT[1] - 0.065, SUMMIT[1] + 0.065)          # the size of the summary figure's panels,
 MAP_LAT_RANGE = (SUMMIT[0] - 0.0375, SUMMIT[0] + 0.0375)        # centred on the summit
+SUMMIT_LABEL_LAT = 46.87                                        # the summit's label sits here, clear of the swarm
 ROSE_BIN_DEG = 10.0                                             # width of a rose petal and of a back-azimuth wedge
 ROSE_FRAC_OF_PANEL = 0.48                                       # width of a rose, as a fraction of its map panel
 PCT_ANISOTROPY_RANGE = (1.0, 4.0)                               # colour scale, about the span of the summary figure
@@ -326,8 +327,8 @@ def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_l
         if events is not None:
             ax.scatter(events.lon, events.lat, s=4, c="black", alpha=0.5, edgecolors="none", zorder=5)
         ax.plot(SUMMIT[1], SUMMIT[0], "^", ms=13, mfc="#C04000", mec="k", mew=0.8, zorder=25)
-        ax.annotate("Mt. Rainier", (SUMMIT[1], SUMMIT[0]), xytext=(0, 13), textcoords="offset points", ha="center",
-                    va="bottom", fontsize=12, fontweight="bold", zorder=26)
+        ax.text(SUMMIT[1], SUMMIT_LABEL_LAT, "Mt. Rainier", ha="center", va="center", fontsize=12, fontweight="bold",
+                zorder=26)
         ax.annotate(f"{m.station}\nN=1", (station_lon, station_lat), xytext=(34, 14), textcoords="offset points",
                     ha="center", va="bottom", fontsize=11, fontweight="bold", zorder=30)
         ax.set(xlim=(lon0, lon1), ylim=(lat0, lat1), aspect=1 / np.cos(np.deg2rad(SUMMIT[0])))
