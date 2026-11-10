@@ -15,17 +15,24 @@
 phi in B, E and F is measured from Q (the ray frame), as SWSPy searches it; phi from north is phi from Q
 plus the back azimuth. The helpers below it return the pieces the figure is made of, so a notebook can
 draw one of them on its own.
+
+``splitting_map_figure`` puts one measurement on the map in the style of the project's summary figure
+(``mt-rainier/scripts/plot_fast_directions_and_anisotropy_4period_panel_v5.py``): the fast direction as a
+red rose on the station, and the percent anisotropy as a blue wedge along the back azimuth.
 """
 from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
 import obspy
-from matplotlib.colors import LightSource
+import matplotlib.ticker as mticker
+from matplotlib.cm import ScalarMappable
+from matplotlib.colors import LightSource, Normalize
+from matplotlib.patches import FancyArrowPatch
 
 from swspy.splitting import split_windowcheck as swc
 
-from . import data
+from . import data, reference
 
 SUMMIT = (46.8529, -121.7604)                                  # lat, lon of the summit (notebook 02)
 KM_PER_DEG_LAT = 111.32
@@ -276,3 +283,95 @@ def shaded_relief():
         dx=(extent[1] - extent[0]) / elev.shape[1] * KM_PER_DEG_LON * 1e3,
         dy=(extent[3] - extent[2]) / elev.shape[0] * KM_PER_DEG_LAT * 1e3)
     return relief, extent
+
+
+MAP_LON_RANGE = (-121.83, -121.70)                              # the extent of the project's summary figure
+MAP_LAT_RANGE = (46.80, 46.875)
+ROSE_BIN_DEG = 10.0                                             # width of a rose petal and of a back-azimuth wedge
+ROSE_FRAC_OF_PANEL = 0.48                                       # width of a rose, as a fraction of its map panel
+PCT_ANISOTROPY_RANGE = (1.0, 4.0)                               # colour scale, about the span of the summary figure
+
+
+def _bare_polar(fig, ax, lon, lat, frac=ROSE_FRAC_OF_PANEL):
+    """A transparent polar axes centred on (lon, lat) of map ``ax``: north up, clockwise, nothing drawn."""
+    pos = ax.get_position()
+    x, y = fig.transFigure.inverted().transform(ax.transData.transform((lon, lat)))
+    w, h = frac * pos.width, frac * pos.height
+    rose = fig.add_axes([x - w / 2, y - h / 2, w, h], projection="polar")
+    rose.set_theta_zero_location("N"); rose.set_theta_direction(-1)
+    rose.patch.set_alpha(0.0); rose.spines["polar"].set_visible(False)
+    rose.set_xticks([]); rose.set_yticks([]); rose.grid(False)
+    rose.set_ylim(0, 1.15)
+    return rose
+
+
+def _draw_shmax(ax, azimuth, centre=(0.72, 0.14), half_len=0.11):
+    """Two white arrows pointing inwards along ``azimuth`` (deg from north), in axes coordinates, labelled S_Hmax."""
+    box_w, box_h = ax.get_window_extent().size                  # equal lengths on screen, so the azimuth is true
+    dx = half_len * np.sin(np.deg2rad(azimuth)) * box_h / box_w
+    dy = half_len * np.cos(np.deg2rad(azimuth))
+    for sign in (1, -1):
+        ax.add_patch(FancyArrowPatch((centre[0] + sign * dx, centre[1] + sign * dy), centre, transform=ax.transAxes,
+                                     arrowstyle="simple,tail_width=0.45,head_width=1.0,head_length=0.9",
+                                     mutation_scale=16, lw=1.2, facecolor="white", edgecolor="black", zorder=40))
+    ax.text(centre[0] + 0.03, centre[1] - 0.03, r"$\mathbf{S_{Hmax}}$", transform=ax.transAxes, fontsize=16,
+            color="white", ha="left", va="center", zorder=41)
+
+
+def splitting_map_figure(m, pct_anisotropy: float, station_lat: float, station_lon: float, events=None,
+                         title: str | None = None, pct_range: tuple[float, float] = PCT_ANISOTROPY_RANGE):
+    """One measurement on the map, in two panels, in the style of the project's summary figure.
+
+    Left: the fast direction as a red rose centred on the station (one petal each way, ``ROSE_BIN_DEG`` wide,
+    because a fast direction is an axis), with the regional S_Hmax. Right: a wedge from the station along the
+    back azimuth, coloured by ``pct_anisotropy``. ``events`` (columns ``lon``, ``lat``) are drawn as dots.
+    """
+    (lon0, lon1), (lat0, lat1) = MAP_LON_RANGE, MAP_LAT_RANGE
+    elev, full = data.load_topography()                         # cropped to the map, then lit as in the summary figure
+    cols = slice(*np.round((np.array([lon0, lon1]) - full[0]) / (full[1] - full[0]) * elev.shape[1]).astype(int))
+    rows = slice(*np.round((full[3] - np.array([lat1, lat0])) / (full[3] - full[2]) * elev.shape[0]).astype(int))
+    relief = LightSource(azdeg=315, altdeg=45).shade(elev[rows, cols], cmap=plt.cm.gray, vert_exag=1.5, blend_mode="overlay")
+    extent = [lon0, lon1, lat0, lat1]
+    fig, axes = plt.subplots(1, 2, figsize=(13, 5.9), sharey=True)
+    fig.subplots_adjust(left=0.07, right=0.90, bottom=0.11, top=0.84, wspace=0.06)
+    for ax in axes:
+        ax.imshow(relief, extent=extent, aspect="auto", alpha=0.45, zorder=0)
+        if events is not None:
+            ax.scatter(events.lon, events.lat, s=4, c="black", alpha=0.5, edgecolors="none", zorder=5)
+        ax.plot(SUMMIT[1], SUMMIT[0], "^", ms=13, mfc="#C04000", mec="k", mew=0.8, zorder=25)
+        ax.annotate("Mt. Rainier", (SUMMIT[1], SUMMIT[0]), xytext=(0, 7), textcoords="offset points", ha="center",
+                    va="bottom", fontsize=12, fontweight="bold", zorder=26)
+        ax.annotate(f"{m.station}\nN=1", (station_lon, station_lat), xytext=(34, 14), textcoords="offset points",
+                    ha="center", va="bottom", fontsize=11, fontweight="bold", zorder=30)
+        ax.set(xlim=(lon0, lon1), ylim=(lat0, lat1), aspect=1 / np.cos(np.deg2rad(SUMMIT[0])))
+        ax.set_xlabel("Longitude (°)", fontsize=13, fontweight="bold")
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=4))
+        ax.yaxis.set_major_locator(mticker.MultipleLocator(0.02))
+        ax.ticklabel_format(useOffset=False, style="plain")
+        ax.grid(False)
+    axes[0].set_ylabel("Latitude (°)", fontsize=13, fontweight="bold")
+    axes[0].set_title("Fast Direction - Fracture Orientation", fontsize=14, fontweight="bold")
+    axes[1].set_title("Percent Anisotropy - Fracture Density by Back Azimuth", fontsize=14, fontweight="bold")
+    if title:
+        fig.suptitle(title, fontsize=16, fontweight="bold")
+    fig.canvas.draw()                                           # fixes the panels' positions for the roses
+
+    width = np.deg2rad(ROSE_BIN_DEG)
+    centre = lambda az: np.deg2rad((np.floor(np.mod(az, 360) / ROSE_BIN_DEG) + 0.5) * ROSE_BIN_DEG)   # its bin's centre
+    rose = _bare_polar(fig, axes[0], station_lon, station_lat)
+    rose.bar([centre(m.phi), centre(m.phi + 180)], [1, 1], width=width, color="red", edgecolor="black", lw=0.4, alpha=0.9)
+    _draw_shmax(axes[0], reference.REGIONAL_COMPRESSION_AZ)
+
+    norm, cmap = Normalize(*pct_range), plt.get_cmap("Blues")
+    axes[1].scatter([station_lon], [station_lat], marker="^", s=230, color="#FFD700", edgecolors="black", lw=0.8, zorder=20)
+    wedge = _bare_polar(fig, axes[1], station_lon, station_lat)
+    wedge.bar([centre(m.back_azimuth)], [1], width=width, color=cmap(norm(pct_anisotropy)), edgecolor="black", lw=0.4,
+              alpha=0.95)
+    axes[1].text(0.97, 0.03, f"A = {pct_anisotropy:.2f}%", transform=axes[1].transAxes, ha="right", va="bottom",
+                 fontsize=14, fontweight="bold", zorder=22,
+                 bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7, edgecolor="none"))
+    pos = axes[1].get_position()
+    cbar = fig.colorbar(ScalarMappable(norm=norm, cmap=cmap), cax=fig.add_axes([pos.x1 + 0.012, pos.y0, 0.018, pos.height]))
+    cbar.set_label("Anisotropy (%)", fontsize=13, fontweight="bold")
+    cbar.ax.grid(False)
+    return fig
