@@ -62,11 +62,28 @@ class _NumpyIntpFull:
         return np.full(shape, fill_value, dtype=dtype, **kwargs)
 
 
+class _NumpyWithInfty:
+    """numpy, plus the ``np.infty`` alias that numpy 2.0 removed.
+
+    PyKonal 0.4.1's published source (``pykonal/fields.cpp``, generated from an older ``fields.pyx``) reads
+    ``np.infty`` in ``ScalarField3D.trace_ray``. Under numpy 2 every ray then stops with "AttributeError:
+    `np.infty` was removed in the NumPy 2.0 release". With numpy 1.x the alias exists and this is not used.
+    """
+
+    infty = np.inf
+
+    def __getattr__(self, name):
+        return getattr(np, name)
+
+
 def _import_pykonal():
     import pykonal
+    import pykonal.fields
     import pykonal.heapq
     if np.dtype(np.int_) != np.dtype(np.intp):              # Windows, numpy 1.x
         pykonal.heapq.np = _NumpyIntpFull()
+    if not hasattr(np, "infty"):                            # numpy 2
+        pykonal.fields.np = _NumpyWithInfty()
     return pykonal
 
 
