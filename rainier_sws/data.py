@@ -253,7 +253,8 @@ def load_orientations() -> pd.DataFrame:
     if _ORIENTATIONS is None:
         o = pd.read_csv(paths.ORIENTATIONS_CSV, comment="#", dtype={"location": str}, keep_default_na=False)
         o["start"] = pd.to_datetime(o["start"], utc=True)
-        o["end"] = pd.to_datetime(o["end"].replace("", "2599-12-31T00:00:00"), utc=True)
+        # an open epoch ends in 2200: inside pandas 2's nanosecond range (it ends in 2262), unlike the 2599 used before
+        o["end"] = pd.to_datetime(o["end"].replace("", "2200-01-01T00:00:00"), utc=True)
         _ORIENTATIONS = o
     return _ORIENTATIONS
 
